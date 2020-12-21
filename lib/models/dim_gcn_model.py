@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dml']
+__all__ = ['dim_part_graph_hie_abla']
 
 import random
 
@@ -15,10 +15,8 @@ import torchvision
 import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
 
-# from torchreid.utils.roi.roi_layers import ROIAlign, ROIPool
-from torchreid.utils.gcn_layer import GraphConvolution, SimlarityLayer
-from torchreid.utils.gat.models import GAT
-from torchreid.utils.DIM.model_ori import GlobalDiscriminator, PartDiscriminator
+from lib.utils.gcn_layer import GraphConvolution
+from lib.utils.DIM.model_ori import GlobalDiscriminator, PartDiscriminator
 
 
 model_urls = {
@@ -200,7 +198,7 @@ class MyModel(nn.Module):
             self.fc = self._construct_fc_layer(fc_dims, 512 * block_rgb.expansion, dropout_p)
 
         # backbone network for contour feature extraction
-        self.inplanes = 64  # 因为前面self._make_layer会改变self.inplanes的值
+        self.inplanes = 64
         self.conv1_contour = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1_contour = nn.BatchNorm2d(64)
         self.layer1_contour = self._make_layer(block_contour, 64, layers_contour[0])
@@ -210,25 +208,17 @@ class MyModel(nn.Module):
 
         # network for contour graph modeling
         self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num_contour, 3))
+        # self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num_contour, 1))
         self.feature_dim_gnn = self.feature_dim_base * block_contour.expansion
-        # self.gnn = GraphConvolution(self.feature_dim_gnn, self.feature_dim_gnn)
-        # self.bn_gnn = nn.BatchNorm1d(self.feature_dim)
         self.gnns = nn.ModuleList([GraphConvolution(self.feature_dim, self.feature_dim_gnn, bias=True)
                                    for _ in range(self.part_num_contour + 1)])
-        # self.gnns1 = nn.ModuleList([GraphConvolution(self.feature_dim, self.feature_dim_gnn, bias=True)
-        #                            for _ in range(self.part_num_contour + 1)])
-        # self.gnns2 = nn.ModuleList([GraphConvolution(self.feature_dim, self.feature_dim_gnn, bias=True)
-        #                             for _ in range(self.part_num_contour + 1)])
         self.bns_gnn = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num_contour + 1)])
-        # self.bns_gnn1 = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num_contour + 1)])
-        # self.bns_gnn2 = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num_contour + 1)])
 
         # bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
         self.bnneck_rgb_part = nn.BatchNorm1d(self.reduced_dim)
         self.bnneck_contour = nn.BatchNorm1d(self.feature_dim)
         self.bnneck_fuse = nn.BatchNorm1d(self.feature_dim)
-        nn.KLDivLoss(reduction='batchmean')
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
@@ -237,10 +227,6 @@ class MyModel(nn.Module):
         self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num_rgb)])
 
         # mutual information learning module
-        # self.discriminator = GlobalDiscriminator(16, 8, in_feature_dim=self.feature_dim_base*block_rgb.expansion,
-        #                                          feature_dim=256)
-        # self.discriminator = GlobalDiscriminator(in_feature_dim=2 * self.feature_dim_base * block_rgb.expansion,
-        #                                          feature_dim=1024)
         self.discriminator_global = GlobalDiscriminator(in_feature_dim=self.feature_dim_base*block_rgb.expansion, feature_dim=512)
         self.part_height = 16 // self.part_num_rgb
         self.residue = 16 % self.part_num_rgb
@@ -349,7 +335,33 @@ class MyModel(nn.Module):
         x2 = self.layer3_contour(x2)
         x2 = self.layer4_contour(x2)
 
-        return x1, x2
+        x_fuse = x1 * x2
+
+        x2_part = self.parts_avgpool_contour(x2)
+
+        # fine-grained scale graph learning
+        x2_part = x2_part.permute(0, 2, 3, 1)
+        x2_part_new = torch.zeros(x2_part.shape[0], x2_part.shape[1], x2_part.shape[3]).cuda()
+        for idx in range(x2_part.shape[1]):
+            part_i = x2_part[:, idx, ...]
+            adj_mat_i = self.cos_sim(part_i)
+            adj_mat_i = self.normalize(adj_mat_i)
+            part_i_new = self.gnns[idx](part_i, adj_mat_i)
+            part_i_new = self.bns_gnn[idx](part_i_new.transpose(1, 2))
+            part_i_new = part_i_new.transpose(1, 2)
+            part_i_new = self.relu(part_i_new)
+
+            x2_part_new[:, idx, :] = torch.max(part_i_new, dim=1)[0]
+
+        # coarse-grained scale graph learning
+        adj_mat = self.cos_sim(x2_part_new)
+        adj_mat = self.normalize(adj_mat)
+        x2_part_new = self.gnns[-1](x2_part_new, adj_mat)
+        x2_part_new = self.bns_gnn[-1](x2_part_new.transpose(1, 2))
+        x2_part_new = x2_part_new.transpose(1, 2)
+        x2_part_new = self.relu(x2_part_new)
+
+        return x1, x2, x_fuse, x2_part_new
 
     def normalize(self, adj_mat):
         dim = adj_mat.shape[2]
@@ -368,17 +380,19 @@ class MyModel(nn.Module):
         return adj_mat
 
     def forward(self, x1, x2, return_featuremaps=False):
-        f1, f2 = self.featuremaps(x1, x2)
+        f1, f2, f_fuse, f2_part = self.featuremaps(x1, x2)
 
         if return_featuremaps:
+            # return f_tmp
             return f1
 
         v1 = self.global_avgpool(f1)
         v1 = v1.view(v1.size(0), -1)
         v1_parts = self.parts_avgpool_rgb(f1)
         v1_parts = self.conv5(v1_parts)
-        v2 = self.global_avgpool(f2)
-        v2 = v2.view(v2.size(0), -1)
+        v2 = torch.max(f2_part, dim=1)[0]
+        v_fuse = self.global_avgpool(f_fuse)
+        v_fuse = v_fuse.view(v_fuse.size(0), -1)
 
         if self.fc is not None:
             v1 = self.fc(v1)
@@ -387,22 +401,20 @@ class MyModel(nn.Module):
         v1_new = self.bnneck_rgb(v1)
         v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
         v2_new = self.bnneck_contour(v2)
+        v_fuse_new = self.bnneck_fuse(v_fuse)
 
         if not self.training:
-            # test_feat0 = F.normalize(v1, p=2, dim=1)
-            # test_feat1 = F.normalize(v2, p=2, dim=1)
-            # test_feat2 = F.normalize(v_fuse, p=2, dim=1)
-            # test_feat3 = torch.cat([test_feat0, test_feat1], dim=1)
-            # test_feat4 = torch.cat([test_feat0, test_feat2], dim=1)
-            # test_feat5 = torch.cat([test_feat1, test_feat2], dim=1)
-            # test_feat6 = torch.cat([test_feat0, test_feat1, test_feat2], dim=1)
 
             test_feat0 = torch.cat([F.normalize(v1_new, p=2, dim=1),
                                     F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
             test_feat1 = F.normalize(v2_new, p=2, dim=1)
-            test_feat2 = torch.cat([test_feat0, test_feat1], dim=1)
+            test_feat2 = F.normalize(v_fuse_new, p=2, dim=1)
+            test_feat3 = torch.cat([test_feat0, test_feat1], dim=1)
+            test_feat4 = torch.cat([test_feat0, test_feat2], dim=1)
+            test_feat5 = torch.cat([test_feat1, test_feat2], dim=1)
+            test_feat6 = torch.cat([test_feat0, test_feat1, test_feat2], dim=1)
 
-            return [test_feat0, test_feat1, test_feat2]
+            return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4, test_feat5, test_feat6]
 
         y1 = self.classifier(v1_new)
         y1_parts = []
@@ -412,99 +424,40 @@ class MyModel(nn.Module):
             y1_part_i = self.classifiers_part[idx](v1_part_i)
             y1_parts.append(y1_part_i)
         y2 = self.classifier_contour(v2_new)
+        y_fuse = self.classifier_fuse(v_fuse_new)
 
-        # y1 = self.classifier(v1)
-        # y2 = self.classifier_contour(v2)
-        # y_fuse = self.classifier_fuse(v_fuse)
+        random_idxs = list(range(f2.size(0)))
+        random.shuffle(random_idxs)
+        f2_shuffle = f2[random_idxs]
 
-        # ######### Mutual Learning version 1 #########
-        # # Mutual Learning
-        # # prime = torch.cat((f1[1:], f_aux[0].unsqueeze(0)), dim=0)
-        #
-        # random_idxs = list(range(f1.size(0)))
-        # random.shuffle(random_idxs)
-        # f1_shuffle = f1[random_idxs]
-        #
-        # # random_idxs = list(range(f2.size(0)))
-        # # random.shuffle(random_idxs)
-        # # f2_shuffle = f2[random_idxs]
-        #
-        # # # examine grad of f1
-        # # f1 = Variable(f1, requires_grad=True)
-        # # f1.register_hook(lambda grad: print(torch.mean(grad, dim=0)))
-        #
-        # ej = self.discriminator(f1, f2)
-        # # em = self.discriminator(f1, f2_shuffle)
-        # em = self.discriminator(f1_shuffle, f2)
-        #
-        # # # Mutual learning for part feat generated from gnn layer
-        # # # ej_part, em_part = [], []
-        # # # for i in range(self.part_num):
-        # # #     fpart_i = fpart[:, i, :]
-        # # #     fpart_aux_i = fpart_aux[:, i, :]
-        # # #     prime_part_i = torch.cat((fpart_aux_i[1:], fpart_aux_i[0].unsqueeze(0)), dim=0)
-        # # #
-        # # #     ej_part_i = self.discriminators_part[i](fpart_i, fpart_aux_i)
-        # # #     em_part_i = self.discriminators_part[i](fpart_i, prime_part_i)
-        # # #
-        # # #     ej_part.append(ej_part_i)
-        # # #     em_part.append(em_part_i)
-        # #
-        # # ej_part, em_part = [], []
-        # # # prime_part = torch.cat((fpart_aux[1:], fpart_aux[0].unsqueeze(0)), dim=0)
-        # # prime_part = torch.cat((v_aux[1:], v_aux[0].unsqueeze(0)), dim=0)
-        # # for i in range(self.part_num):
-        # #     fpart_i = fpart[:, i, :]
-        # #     # fpart_i = fpart_ori[:, i, :]
-        # #
-        # #     # ej_part_i = self.discriminators_part[i](fpart_i, fpart_aux)
-        # #     ej_part_i = self.discriminators_part[i](fpart_i, v_aux)
-        # #     em_part_i = self.discriminators_part[i](fpart_i, prime_part)
-        # #
-        # #     ej_part.append(ej_part_i)
-        # #     em_part.append(em_part_i)
-        # ######### Mutual Learning version 1 #########
+        ej = self.discriminator_global(v1_new, f2)
+        em = self.discriminator_global(v1_new, f2_shuffle)
 
-        # ######### Mutual Learning version 2 #########
-        # # random_idxs = list(range(v2.size(0)))
-        # # random.shuffle(random_idxs)
-        # # v2_shuffle = v2[random_idxs]
-        #
-        # random_idxs = list(range(v1.size(0)))
-        # random.shuffle(random_idxs)
-        # v1_shuffle = v1[random_idxs]
-        #
-        # ej = self.discriminator(v1, v2)
-        # # em = self.discriminator(v1, v2_shuffle)
-        # em = self.discriminator(v1_shuffle, v2)
-        # # print('ej is ', torch.mean(ej))
-        # # print('em is ', torch.mean(em))
-        # # print('\n')
-        # ######### Mutual Learning version 2 #########
+        ej_part = []
+        em_part = []
+        height_record = 0
+        for idx in range(self.part_num_rgb):
+            flag = self.part_num_rgb - 1 - idx
+            if flag < self.residue:
+                height_record += 1
 
-        if self.loss == 'softmax':
-            return y1, y1_parts, y2
-        elif 'triplet' in self.loss:
-            # v1 = F.normalize(v1, p=2, dim=1)
-            # v2 = F.normalize(v2, p=2, dim=1)
-            # v_fuse = F.normalize(v_fuse, p=2, dim=1)
-            # v1_parts = F.normalize(v1_parts.view(v1_parts.size(0), -1), p=2, dim=1)
-            # v = torch.cat([v1, v1_parts.view(v1_parts.size(0), -1), v2, v_fuse], dim=1)
-            return y1, y1_parts, y2, v1, v1_parts.view(v1_parts.size(0), -1), v2
-            # return y1, y1_parts, y2, y_fuse, v, ej, em, ej_part, em_part
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
+            v1_part_i = v1_parts_new[:, :, idx]
+            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+            f2_i = f2[:, :, height_record:height_record+self.part_height, :]
+            random_idxs_i = list(range(f2_i.size(0)))
+            random.shuffle(random_idxs_i)
+            f2_i_shuffle = f2_i[random_idxs_i]
 
-# def init_pretrained_weights(model, model_url):
-#     """Initializes model with pretrained weights.
-#
-#     Layers that don't match with pretrained layers in name or size are kept unchanged.
-#     """
-#     pretrain_dict = model_zoo.load_url(model_url)
-#     model_dict = model.state_dict()
-#     pretrain_dict = {k: v for k, v in pretrain_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
-#     model_dict.update(pretrain_dict)
-#     model.load_state_dict(model_dict)
+            ej_part_i = self.discriminator_part(v1_part_i, f2_i)
+            em_part_i = self.discriminator_part(v1_part_i, f2_i_shuffle)
+
+            ej_part.append(ej_part_i)
+            em_part.append(em_part_i)
+
+            height_record += self.part_height
+
+        return [y1, y1_parts, y2, y_fuse], [v1, v1_parts.view(v1_parts.size(0), -1), v2, v_fuse], ej, em, ej_part, em_part
+
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.
@@ -525,47 +478,6 @@ def init_pretrained_weights(model, model_url):
 
     model_dict.update(pretrain_dict_)
     model.load_state_dict(model_dict)
-
-# def init_pretrained_weights_hybrid(model, model_url1, model_url2):
-#     """
-#     Initialize model with pretrained weights.
-#     Layers that don't match with pretrained layers in name or size are kept unchanged.
-#     """
-#     '''
-#     model_url1: 对应img模块的网络架构
-#     model_url2: 对应sketch模块的网络架构
-#     '''
-#     pretrain_dict1 = model_zoo.load_url(model_url1)
-#     pretrain_dict2 = model_zoo.load_url(model_url2)
-#     model_dict = model.state_dict()
-#
-#     pretrain_dict1_match = {k: v for k, v in pretrain_dict1.items() if k in model_dict and model_dict[k].size() == v.size()}
-#     model_dict.update(pretrain_dict1_match)
-#
-#     # 利用预训练模型初始化sketch feature的网络
-#     pretrain_dict2_match = {}
-#     for k, v in pretrain_dict2.items():
-#         '''
-#         k的格式如：
-#         layer4.2.conv1.weight    layer4.2.conv1.weight
-#         layer4.2.bn1.running_mean    layer4.2.bn1.running_var
-#         layer4.2.bn1.weight    layer4.2.bn1.bias
-#         '''
-#         nameList = k.split('.')
-#         layer_name = ''
-#         for idx, part in enumerate(nameList):
-#             if idx == 0:
-#                 layer_name += (part + '_aux')
-#             else:
-#                 layer_name += ('.' + part)
-#
-#         if layer_name in model_dict and model_dict[layer_name].size() == v.size():
-#             pretrain_dict2_match[layer_name] = v
-#     model_dict.update(pretrain_dict2_match)
-#
-#     model.load_state_dict(model_dict)
-#     print("Initialized model with pretrained weights from {}".format(model_url1))
-#     print("Initialized model with pretrained weights from {}".format(model_url2))
 
 def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     """
@@ -623,7 +535,7 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
 """ResNet"""
-def dml(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_part_graph_hie(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
