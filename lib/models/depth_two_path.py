@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['resnet50']
+__all__ = ['depth_two_path']
 
 import random
 
@@ -19,6 +19,7 @@ from torch.autograd import Variable
 from torchreid.utils.gcn_layer import GraphConvolution, SimlarityLayer
 from torchreid.utils.gat.models import GAT
 from torchreid.utils.DIM.model_ori import GlobalDiscriminator, PartDiscriminator
+
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -146,11 +147,9 @@ class DimReduceLayer(nn.Module):
 
 class MyModel(nn.Module):
 
-    def __init__(self, num_classes, loss, block_rgb, layers_rgb, block_contour, layers_contour,
-                 zero_init_residual=False,
+    def __init__(self, num_classes, loss, block_rgb, layers_rgb, block_contour, layers_contour, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num_rgb=3, part_num_contour=3,
-                 **kwargs):
+                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num_rgb=3, part_num_contour=3, **kwargs):
         super(MyModel, self).__init__()
         self.cnt = 0
 
@@ -192,15 +191,34 @@ class MyModel(nn.Module):
         self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num_rgb, 1))
         self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 
-        # bnneck layers
-        self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
-        self.bnneck_rgb_part = nn.BatchNorm1d(self.reduced_dim)
-
         # fc layers definition
         if fc_dims is None:
             self.fc = None
         else:
             self.fc = self._construct_fc_layer(fc_dims, 512 * block_rgb.expansion, dropout_p)
+
+        # backbone network for contour feature extraction
+        self.inplanes = 64  # 因为前面self._make_layer会改变self.inplanes的值
+        self.conv1_contour = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1_contour = nn.BatchNorm2d(64)
+        self.layer1_contour = self._make_layer(block_contour, 64, layers_contour[0])
+        self.layer2_contour = self._make_layer(block_contour, 128, layers_contour[1], stride=2)
+        self.layer3_contour = self._make_layer(block_contour, 256, layers_contour[2], stride=2)
+        self.layer4_contour = self._make_layer(block_contour, self.feature_dim_base, layers_contour[3], stride=last_stride)
+
+        # bnneck layers
+        # self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
+        # self.bnneck_rgb_part = nn.BatchNorm1d(self.reduced_dim)
+        # self.bnneck_contour = nn.BatchNorm1d(self.feature_dim)
+        self.bnneck_concate = nn.BatchNorm1d(self.feature_dim*2 + self.reduced_dim*self.part_num_rgb)
+        # self.bnneck_fuse = nn.BatchNorm1d(self.feature_dim)
+
+        # classifiers
+        # self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
+        # self.classifier_contour = nn.Linear(self.feature_dim, num_classes, bias=False)
+        # self.classifier_fuse = nn.Linear(self.feature_dim, num_classes, bias=False)
+        # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num_rgb)])
+        self.classifier_concate = nn.Linear(self.feature_dim*2 + self.reduced_dim*self.part_num_rgb, num_classes, bias=False)
 
         self._init_params()
 
@@ -213,6 +231,7 @@ class MyModel(nn.Module):
                     nn.init.constant_(m.bn3.weight, 0)
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
+
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
@@ -250,8 +269,7 @@ class MyModel(nn.Module):
             self.feature_dim = input_dim
             return None
 
-        assert isinstance(fc_dims, (list, tuple)), 'fc_dims must be either list or tuple, but got {}'.format(
-            type(fc_dims))
+        assert isinstance(fc_dims, (list, tuple)), 'fc_dims must be either list or tuple, but got {}'.format(type(fc_dims))
 
         layers = []
         for dim in fc_dims:
@@ -283,7 +301,7 @@ class MyModel(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def featuremaps(self, x1):
+    def featuremaps(self, x1, x2):
         x1 = self.conv1(x1)
         x1 = self.bn1(x1)
         x1 = self.relu(x1)
@@ -293,10 +311,19 @@ class MyModel(nn.Module):
         x1 = self.layer3(x1)
         x1 = self.layer4(x1)
 
-        return x1
+        x2 = self.conv1_contour(x2)
+        x2 = self.bn1_contour(x2)
+        x2 = self.relu(x2)
+        x2 = self.maxpool(x2)
+        x2 = self.layer1_contour(x2)
+        x2 = self.layer2_contour(x2)
+        x2 = self.layer3_contour(x2)
+        x2 = self.layer4_contour(x2)
 
-    def forward(self, x1, return_featuremaps=False):
-        f1 = self.featuremaps(x1)
+        return x1, x2
+
+    def forward(self, x1, x2, return_featuremaps=False):
+        f1, f2 = self.featuremaps(x1, x2)
 
         if return_featuremaps:
             return f1
@@ -305,36 +332,67 @@ class MyModel(nn.Module):
         v1 = v1.view(v1.size(0), -1)
         v1_parts = self.parts_avgpool_rgb(f1)
         v1_parts = self.conv5(v1_parts)
+        v2 = self.global_avgpool(f2)
+        v2 = v2.view(v2.size(0), -1)
 
         if self.fc is not None:
             v1 = self.fc(v1)
 
-        v1_new = self.bnneck_rgb(v1)
-        v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
+        # bnneck operation
+        # v1_new = self.bnneck_rgb(v1)
+        # v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
+        # v2_new = self.bnneck_contour(v2)
+
+        v_concate = torch.cat([v1, v1_parts.view(v1_parts.size(0), -1), v2], dim=1)
+        v_concate_new = self.bnneck_concate(v_concate)
 
         if not self.training:
+            # test_feat0 = torch.cat([F.normalize(v1_new, p=2, dim=1),
+            #                         F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
+            # # test_feat0 = F.normalize(v1_new, p=2, dim=1)
+            # test_feat1 = F.normalize(v2_new, p=2, dim=1)
+            # test_feat2 = torch.cat([test_feat0, test_feat1], dim=1)
 
             test_feat0 = torch.cat([F.normalize(v1, p=2, dim=1),
                                     F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)], dim=1)
+            test_feat1 = F.normalize(v2, p=2, dim=1)
+            test_feat2 = torch.cat([test_feat0, test_feat1], dim=1)
+            test_feat3 = v_concate_new
+
             # return [test_feat0, test_feat1, test_feat2]
-            return [test_feat0]
+            return [test_feat0, test_feat1, test_feat2, test_feat3]
 
-
-        y1 = self.classifier(v1_new)
-        y1_parts = []
-        for idx in range(self.part_num_rgb):
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            y1_part_i = self.classifiers_part[idx](v1_part_i)
-            y1_parts.append(y1_part_i)
+        # y1 = self.classifier(v1_new)
+        # y1_parts = []
+        # for idx in range(self.part_num_rgb):
+        #     v1_part_i = v1_parts_new[:, :, idx]
+        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
+        #     y1_parts.append(y1_part_i)
+        # y2 = self.classifier_contour(v2_new)
+        y_concate = self.classifier_concate(v_concate_new)
 
         if self.loss == 'softmax':
-            return y1, y1_parts
+            return y_concate
+            # return y1, y1_parts, y2
+            # return y1, y2
         elif 'triplet' in self.loss:
-            return y1, y1_parts, v1, v1_parts.view(v1_parts.size(0), -1)
+            # return y1, y2, v1, v2
+            # return y1, y1_parts, y2, y_concate, v1, v1_parts.view(v1_parts.size(0), -1), v2
+            return  y_concate, v1, v1_parts.view(v1_parts.size(0), -1), v2
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
+# def init_pretrained_weights(model, model_url):
+#     """Initializes model with pretrained weights.
+#
+#     Layers that don't match with pretrained layers in name or size are kept unchanged.
+#     """
+#     pretrain_dict = model_zoo.load_url(model_url)
+#     model_dict = model.state_dict()
+#     pretrain_dict = {k: v for k, v in pretrain_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
+#     model_dict.update(pretrain_dict)
+#     model.load_state_dict(model_dict)
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.
@@ -343,26 +401,131 @@ def init_pretrained_weights(model, model_url):
     """
     pretrain_dict = model_zoo.load_url(model_url)
     model_dict = model.state_dict()
-    pretrain_dict_matched = {k: v for k, v in pretrain_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
-    model_dict.update(pretrain_dict_matched)
+    pretrain_dict_ = dict()
+    for k, v in pretrain_dict.items():
+        # print(k, ':', v.size())
+        if k in model_dict and model_dict[k].size() == v.size():
+            pretrain_dict_[k] = v
+            # print(k)
+        elif k == 'conv1.weight':
+            print('con1.weight initialization done!')
+            pretrain_dict_[k] = torch.mean(v, dim=1, keepdim=True)
+
+    model_dict.update(pretrain_dict_)
     model.load_state_dict(model_dict)
 
+# def init_pretrained_weights_hybrid(model, model_url1, model_url2):
+#     """
+#     Initialize model with pretrained weights.
+#     Layers that don't match with pretrained layers in name or size are kept unchanged.
+#     """
+#     '''
+#     model_url1: 对应img模块的网络架构
+#     model_url2: 对应sketch模块的网络架构
+#     '''
+#     pretrain_dict1 = model_zoo.load_url(model_url1)
+#     pretrain_dict2 = model_zoo.load_url(model_url2)
+#     model_dict = model.state_dict()
+#
+#     pretrain_dict1_match = {k: v for k, v in pretrain_dict1.items() if k in model_dict and model_dict[k].size() == v.size()}
+#     model_dict.update(pretrain_dict1_match)
+#
+#     # 利用预训练模型初始化sketch feature的网络
+#     pretrain_dict2_match = {}
+#     for k, v in pretrain_dict2.items():
+#         '''
+#         k的格式如：
+#         layer4.2.conv1.weight    layer4.2.conv1.weight
+#         layer4.2.bn1.running_mean    layer4.2.bn1.running_var
+#         layer4.2.bn1.weight    layer4.2.bn1.bias
+#         '''
+#         nameList = k.split('.')
+#         layer_name = ''
+#         for idx, part in enumerate(nameList):
+#             if idx == 0:
+#                 layer_name += (part + '_aux')
+#             else:
+#                 layer_name += ('.' + part)
+#
+#         if layer_name in model_dict and model_dict[layer_name].size() == v.size():
+#             pretrain_dict2_match[layer_name] = v
+#     model_dict.update(pretrain_dict2_match)
+#
+#     model.load_state_dict(model_dict)
+#     print("Initialized model with pretrained weights from {}".format(model_url1))
+#     print("Initialized model with pretrained weights from {}".format(model_url2))
+
+def init_pretrained_weights_hybrid(model, model_url1, model_url2):
+    """
+    Initialize model with pretrained weights.
+    Layers that don't match with pretrained layers in name or size are kept unchanged.
+    """
+    '''
+    model_url1: 对应img模块的网络架构
+    model_url2: 对应sketch模块的网络架构
+    '''
+    pretrain_dict1 = model_zoo.load_url(model_url1)
+    pretrain_dict2 = model_zoo.load_url(model_url2)
+    model_dict = model.state_dict()
+
+    pretrain_dict1_match = {k: v for k, v in pretrain_dict1.items() if
+                            k in model_dict and model_dict[k].size() == v.size()}
+    model_dict.update(pretrain_dict1_match)
+
+    # 利用预训练模型初始化sketch feature的网络
+    pretrain_dict2_match = {}
+    for k, v in pretrain_dict2.items():
+        '''
+        k的格式如：
+        layer4.2.conv1.weight    layer4.2.conv1.weight
+        layer4.2.bn1.running_mean    layer4.2.bn1.running_var
+        layer4.2.bn1.weight    layer4.2.bn1.bias
+        '''
+        name_list = k.split('.')
+        layer_name = ''
+        for idx, part in enumerate(name_list):
+            if idx == 0:
+                layer_name += (part + '_aux')
+            else:
+                layer_name += ('.' + part)
+
+        if layer_name in model_dict and model_dict[layer_name].size() == v.size():
+            pretrain_dict2_match[layer_name] = v
+
+        # Initialize img part layer4
+        if 'layer4' in name_list:
+            print('Layer4 Part Initialization Done!')
+            layer_name1 = ''
+            for idx, part in enumerate(name_list):
+                if idx == 0:
+                    layer_name1 += (part + '_part')
+                else:
+                    layer_name1 += ('.' + part)
+            if layer_name1 in model_dict and model_dict[layer_name1].size() == v.size():
+                pretrain_dict2_match[layer_name1] = v
+
+    model_dict.update(pretrain_dict2_match)
+
+    model.load_state_dict(model_dict)
+    print("Initialized model with pretrained weights from {}".format(model_url1))
+    print("Initialized model with pretrained weights from {}".format(model_url2))
+
 """ResNet"""
-
-
-def resnet50(num_classes, loss='softmax', pretrained=True, **kwargs):
+def depth_two_path(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
         block_rgb=Bottleneck,
         layers_rgb=[3, 4, 6, 3],
+        block_contour=Bottleneck,
+        layers_contour=[3, 4, 6, 3],
         last_stride=1,
         fc_dims=None,
         dropout_p=None,
         **kwargs
     )
     if pretrained:
-        init_pretrained_weights(model, model_urls['resnet50'])
+        init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet50'])
     return model
 
 

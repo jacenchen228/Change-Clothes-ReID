@@ -1,56 +1,118 @@
 from __future__ import absolute_import
 
-from .resnet import resnet50
-from .resnet_2stream import resnet50_2stream
-# from .model_3D import resnet50_3D
-# from .model_3D_2stream import model_3D_2stream
-from .my_3d_branch import my_3d_branch
-from .model_3D_2stream_v1 import model_3D_2stream_v1
-from .model_3D_2stream_v2 import model_3D_2stream_v2
-from .model_3D_2stream_v3 import model_3D_2stream_v3
-from .model_3D_2stream_v4 import model_3D_2stream_v4
-from .model_2stream_v3 import model_2stream_v3
-from .model_2stream_part import model_2stream_part
-from .model_3D_2stream_tmp import model_3D_2stream_tmp
-from .mgn import mgn
-from .mgn_strong import MGN_Strong
-from .mgn3d import MGN3D
-from .mhn_ide import mhn6
-from .pcb import pcb_p4, pcb_p6
-from .pcb_2stream import pcbp4_2stream, pcbp6_2stream
-from .reid_3d_branch import reid_3d_branch
-from .resnet_strong import resnet50_strong
+import torch
+
+from .resnet import *
+from .resnetmid import *
+from .senet import *
+from .densenet import *
+from .inceptionresnetv2 import *
+from .inceptionv4 import *
+from .xception import *
+
+from .nasnet import *
+from .mobilenetv2 import *
+from .shufflenet import *
+from .squeezenet import *
+from .shufflenetv2 import *
+
+from .mudeep import *
+from .hacnn import *
+from .pcb import *
+from .mlfn import *
+from .osnet import *
+
+from .dim import *
+from .dim_wo_bnneck import *
+from .pcb_dim import *
+# from .dim_part import *
+from .dim_gnn import *
+from .dim_gnn_hie import *
+from .dim_part_gnn_hie import *
+from .dim_part_gnn_hie1 import *
+from .dim_part_gnn_hie2 import *
+from .baseline_dim import *
+# from .dim_part_split import *
+from .my_baseline import *
+from .baseline_gnn import *
+from .baseline_gnn_hie import *
+
+from .mhn_ide import *
+from .hpm import *
+from .mgn import *
+from .dml import *
+from .depth_two_path import depth_two_path
 
 __model_factory = {
     # image classification models
     'resnet50': resnet50,
-    'resnet50_2stream': resnet50_2stream,
-    'resnet50_strong': resnet50_strong,
-    # 'resnet50_3D': resnet50_3D,
-    # 'model_3D_2stream': model_3D_2stream,
-    'model_3D_2stream_v1': model_3D_2stream_v1,
-    'model_3D_2stream_v2': model_3D_2stream_v2,
-    'model_3D_2stream_v3': model_3D_2stream_v3,
-    'model_3D_2stream_v4': model_3D_2stream_v4,
-    'model_2stream_v3': model_2stream_v3,
-    'model_2stream_part': model_2stream_part,
-    'model_3D_2stream_tmp': model_3D_2stream_tmp,
-    'my_3D_branch': my_3d_branch,
-    'reid_3d_branch': reid_3d_branch,
-    'mgn': mgn,
-    'mhn': mhn6,
-    'pcb_p4': pcb_p4,
+    'se_resnet50': se_resnet50,
+    'se_resnet50_fc512': se_resnet50_fc512,
+    'se_resnet101': se_resnet101,
+    'se_resnext50_32x4d': se_resnext50_32x4d,
+    'se_resnext101_32x4d': se_resnext101_32x4d,
+    'densenet121': densenet121,
+    'densenet169': densenet169,
+    'densenet201': densenet201,
+    'densenet161': densenet161,
+    'densenet121_fc512': densenet121_fc512,
+    'inceptionresnetv2': inceptionresnetv2,
+    'inceptionv4': inceptionv4,
+    'xception': xception,
+    # lightweight models
+    'nasnsetmobile': nasnetamobile,
+    'mobilenetv2_x1_0': mobilenetv2_x1_0,
+    'mobilenetv2_x1_4': mobilenetv2_x1_4,
+    'shufflenet': shufflenet,
+    'squeezenet1_0': squeezenet1_0,
+    'squeezenet1_0_fc512': squeezenet1_0_fc512,
+    'squeezenet1_1': squeezenet1_1,
+    'shufflenet_v2_x0_5': shufflenet_v2_x0_5,
+    'shufflenet_v2_x1_0': shufflenet_v2_x1_0,
+    'shufflenet_v2_x1_5': shufflenet_v2_x1_5,
+    'shufflenet_v2_x2_0': shufflenet_v2_x2_0,
+    # reid-specific models
+    'mudeep': MuDeep,
+    'resnet50mid': resnet50mid,
+    'hacnn': HACNN,
     'pcb_p6': pcb_p6,
-    'pcbp4_2stream': pcbp4_2stream,
-    'pcbp6_2stream': pcbp6_2stream
+    'pcb_p4': pcb_p4,
+    'mlfn': mlfn,
+    'osnet_x1_0': osnet_x1_0,
+    'osnet_x0_75': osnet_x0_75,
+    'osnet_x0_5': osnet_x0_5,
+    'osnet_x0_25': osnet_x0_25,
+    'osnet_ibn_x1_0': osnet_ibn_x1_0,
+    # dim
+    'dim_graph_resnet50_C': dim_graph_resnet50_C,
+    'dim_graph_hie_resnet50_C': dim_graph_hie_resnet50_C,
+    'dim_part_graph_hie': dim_part_graph_hie_resnet50_C,
+    'dim_part_graph_hie1': dim_part_graph_hie_resnet50_C1,
+    'dim_part_graph_hie_abla': dim_part_graph_hie_abla,
+    'dim_graph_resnet50_C_wobnneck': dim_graph_resnet50_C_wobnneck,
+    'my_baseline_dim': my_baseline_dim,
+    'my_baseline': my_baseline,
+    'my_baseline_gnn': my_baseline_gnn,
+    'my_baseline_gnn_hie': my_baseline_gnn_hie,
+    # pcb-based dim
+    'pcb_p6_dim_contour': pcb_p6_dim_contour,
+    'pcb_p6_dim_img': pcb_p6_dim_img,
+    'pcb_p4_dim_contour': pcb_p4_dim_contour,
+    'pcb_p4_dim_img': pcb_p4_dim_img,
+    # sota
+    'mhn6': mhn6,
+    'hpm': hpm,
+    'mgn': mgn,
+    'dml': dml,
+    # depth variant
+    'depth_two_path': depth_two_path
 }
-
 
 def show_avai_models():
     """Displays available models.
 
     Examples::
-        >>> from lib import models
+        >>> from torchreid import models
         >>> models.show_avai_models()
     """
     print(list(__model_factory.keys()))
@@ -72,20 +134,15 @@ def build_model(name, num_classes, loss='softmax', pretrained=True, use_gpu=True
         nn.Module
 
     Examples::
-        >>> from lib import models
+        >>> from torchreid import models
         >>> model = models.build_model('resnet50', 751, loss='softmax')
     """
     avai_models = list(__model_factory.keys())
-    if name == 'resnet50_strong':
-        return resnet50_strong(pretrained=True, num_classes=num_classes)
-    if name == 'mgn3d':
-        return MGN3D(num_classes=num_classes, num_layers=50, **kwargs)
-    if name == 'mgn_strong':
-        return MGN_Strong(num_classes=num_classes, num_layers=50)
     if name not in avai_models:
         raise KeyError('Unknown model: {}. Must be one of {}'.format(name, avai_models))
     return __model_factory[name](
         num_classes=num_classes,
+        loss=loss,
         pretrained=pretrained,
         use_gpu=use_gpu,
         **kwargs
