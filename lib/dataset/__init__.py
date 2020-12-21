@@ -1,6 +1,6 @@
 from .dataset import *
 from .dataset import *
-from .prcc3d import *
+from .prcc import *
 from .prcc_3d_relabel import *
 from .market import *
 from .vc_clothes import *
