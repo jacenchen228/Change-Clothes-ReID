@@ -2,14 +2,14 @@
 
 This is the implementation of a novel person re-id model combining RGB and contour images to solve clothing-change person re-id. 
 
-Prerequisites
+## Prerequisites
 
 - python 3.7
 - pytorch 1.2
 - torchvision 0.4.0
 - CUDA 10.0
 
-Data Preparation
+## Data Preparation
 
 We validate the performance of our model on 5 datasets including 2 large-scale datasets (Market1501, DukeMTMC-reID) and 3 clothing-confused datasets (PRCC, BIWI, VC-Clothes). Among clothing-confused datasets, PRCC, VC-Clothes and BIWI target at long-term person re-id in which the same pedestrian might change clothes.
 
@@ -26,15 +26,15 @@ We validate the performance of our model on 5 datasets including 2 large-scale d
 
 - The keypoints estimator [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as white (represented by value 1). The predicted results would be put in the directory contour/ and the directory would be arranged the same as the original dataset.
 
-Train and Test
+## Train and Test
 
-Train
+### Train
 
 For training, different datasets and training hyper-parameters could be choosen in the command line. For example, the command line for training  the PRCC dataset could be set as the following example:
 
     python main.py -s prcc -t prcc --height 256 --width 128 --max-epoch 80 --batch-size 64 -a baseline --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --transforms random_flip random_crop --dist-metric cosine 
 
-Test
+### Test
 
 For performance evaluation, the only hyper-parameter --evaluate should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
 
@@ -42,7 +42,7 @@ For performance evaluation, the only hyper-parameter --evaluate should be added 
 
 There are two different evaluation protocols used in our experiments. If you use the evaluation protocol as Market1501, the hyper-parameter --flag-general should be added to the evaluation command line. In default, we choose the evaluation protocol as the PRCC dataset. 
 
-Visualization
+### Visualization
 
 Visualization tools for rank list and activated feature maps could be found in lib/utils/reidtools.py.
 
