@@ -20,11 +20,11 @@ We validate the performance of our model on 5 datasets including 2 large-scale d
         image_path3 person_id3 camera_id3
         ......
 
- For each line, different data items would be split by one space. All list files would be saved in the directory list/.
+ For each line, different data items would be split by one space. All list files would be saved in the directory `list/`.
 
 2. Pretrained models are utilized to extract human contours to combine with RGB images and learn a powerful representation for clothing-change person re-id.
 
-- The keypoints estimator [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as white (represented by value 1). The predicted results would be put in the directory contour/ and the directory would be arranged the same as the original dataset.
+- The keypoints estimator [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as white (represented by value 1). The predicted results would be put in the directory `contour/` and the directory would be arranged the same as the original dataset.
 
 ## Train and Test
 
