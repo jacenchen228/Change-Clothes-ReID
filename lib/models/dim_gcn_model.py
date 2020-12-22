@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dim_part_graph_hie_abla']
+__all__ = ['dim_gcn_model']
 
 import random
 

@@ -15,12 +15,6 @@ import torchvision
 import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
 
-# from torchreid.utils.roi.roi_layers import ROIAlign, ROIPool
-from torchreid.utils.gcn_layer import GraphConvolution, SimlarityLayer
-from torchreid.utils.gat.models import GAT
-from torchreid.utils.DIM.model_ori import GlobalDiscriminator, PartDiscriminator
-
-
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
     'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',

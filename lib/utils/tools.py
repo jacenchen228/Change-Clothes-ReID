@@ -7,6 +7,7 @@ from PIL import Image
 import random
 import numpy as np
 import pickle
+import sys
 
 import torch
 
@@ -16,7 +17,7 @@ def read_image(path, flag=False):
 
     Args:
         path (str): path to an image.
-        flag (str): flag determining whether loading RGB images.
+        flag (bool): flag determining whether loading RGB images.
     Returns:
         PIL image
     """
