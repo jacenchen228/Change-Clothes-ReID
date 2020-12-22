@@ -65,16 +65,16 @@ class EvaluatorGeneral(object):
         q_pids, q_camids = [], []  # query person IDs and query camera IDs
         qf_dict = defaultdict(list)
         for batch_idx, data in enumerate(self.queryloader):
-            imgs, pids, camids, inputs3d = self._parse_data(data)
+            imgs, contours, pids, camids = self._parse_data(data)
 
             if self.use_gpu:
                 imgs = imgs.cuda()
-                inputs3d = inputs3d.cuda()
+                contours = contours.cuda()
 
             end = time.time()
 
-            features_list = self._extract_features(imgs, inputs3d)
-            features_list_flip = self._extract_features(imgs.flip(3), inputs3d.flip(3))
+            features_list = self._extract_features(imgs, contours)
+            features_list_flip = self._extract_features(imgs.flip(3), contours.flip(3))
 
             batch_time.update(time.time() - end)
 
@@ -110,15 +110,15 @@ class EvaluatorGeneral(object):
         gf_dict = defaultdict(list)
         end = time.time()
         for batch_idx, data in enumerate(self.galleryloader):
-            imgs, pids, camids, inputs3d = self._parse_data(data)
+            imgs, contours, pids, camids = self._parse_data(data)
             if self.use_gpu:
                 imgs = imgs.cuda()
-                inputs3d = inputs3d.cuda()
+                contours = contours.cuda()
 
             end = time.time()
 
-            features_list = self._extract_features(imgs, inputs3d)
-            features_list_flip = self._extract_features(imgs.flip(3), inputs3d.flip(3))
+            features_list = self._extract_features(imgs, contours)
+            features_list_flip = self._extract_features(imgs.flip(3), contours.flip(3))
 
             batch_time.update(time.time() - end)
 
@@ -219,12 +219,12 @@ class EvaluatorGeneral(object):
 
     def _parse_data(self, data):
         imgs = data[0]
-        pids = data[1]
-        camids = data[2]
+        contours = data[1]
 
-        inputs3d = data[6]
+        pids = data[2]
+        camids = data[3]
 
-        return imgs, pids, camids, inputs3d
+        return imgs, contours, pids, camids
 
     def _extract_features(self, input1, input2):
         self.model.eval()

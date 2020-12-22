@@ -244,10 +244,11 @@ def build_transforms(
     #     ToTensor()
     # ])
 
-    transform_3d = Compose([
+    transform_co = Compose([
+        Resize((height, width)),
         ToTensor(),
         normalize
     ])
 
-    return transform_tr, transform_te, transform_3d
+    return transform_tr, transform_te, transform_co
 

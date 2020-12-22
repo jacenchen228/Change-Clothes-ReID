@@ -535,7 +535,7 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
 """ResNet"""
-def dim_part_graph_hie(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcn_model(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,

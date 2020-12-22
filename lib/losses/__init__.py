@@ -6,8 +6,6 @@ from .cross_entropy_loss import CrossEntropyLoss
 from .hard_mine_triplet_loss import TripletLoss
 from .deep_info_max_loss import DeepInfoMaxLoss
 from .div_loss import AdvDivLoss
-from .cloth_sensitive_triplet_loss import TripletLoss_Cloth_Sen
-from .cloth_insensitive_triplet_loss import TripletLoss_Cloth_Insen
 
 
 def DeepSupervision(criterion, xs, y):

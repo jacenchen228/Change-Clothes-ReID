@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-# __all__ = ['visualize_ranked_results', 'visactmap', 'save_3d_param', 'visualize_smpl']
 __all__ = ['visualize_ranked_results', 'visactmap']
 
 import numpy as np

@@ -65,14 +65,15 @@ class Evaluator(object):
         q_pids, q_camids = [], []  # query person IDs and query camera IDs
         qf_dict = defaultdict(list)
         for batch_idx, data in enumerate(self.queryloader):
-            imgs, pids, camids = self._parse_data(data)
+            imgs, contours, pids, camids = self._parse_data(data)
 
             if self.use_gpu:
                 imgs = imgs.cuda()
+                contorus = contours.cuda()
 
             end = time.time()
 
-            features_list = self._extract_features(imgs)
+            features_list = self._extract_features(imgs, contorus)
 
             # ######## specifiy for mhn ########
             # from lib.utils import FlipLR
@@ -124,12 +125,13 @@ class Evaluator(object):
         gf_dict = defaultdict(list)
         end = time.time()
         for batch_idx, data in enumerate(self.galleryloader):
-            imgs, pids, camids = self._parse_data(data)
+            imgs, contours, pids, camids = self._parse_data(data)
             if self.use_gpu:
                 imgs = imgs.cuda()
+                contours = contours.cuda()
 
             end = time.time()
-            features_list = self._extract_features(imgs)
+            features_list = self._extract_features(imgs, contours)
 
             # ######## specifiy for mhn ########
             # n = imgs.shape[0]
@@ -250,11 +252,12 @@ class Evaluator(object):
 
     def _parse_data(self, data):
         imgs = data[0]
-        pids = data[1]
-        camids = data[2]
+        contours = data[1]
+        pids = data[2]
+        camids = data[3]
 
-        return imgs, pids, camids
+        return imgs, contours, pids, camids
 
-    def _extract_features(self, input):
+    def _extract_features(self, input, input_ext):
         self.model.eval()
-        return self.model(input)
+        return self.model(input, input_ext)

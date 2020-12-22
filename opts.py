@@ -13,7 +13,6 @@ def init_parser():
                         choices=['softmax', 'softmax_compare', 'triplet', 'triplet_compare', 'triplet_baseline',
                                  'triplet_feat_split', 'triplet_dml'],
                         help='methodology')
-    parser.add_argument('--flag-3d', action='store_true', help='if use 3d loss')
     parser.add_argument('--flag-general', action='store_true', help='if use general protocal')
 
     # ************************************************************
@@ -100,8 +99,6 @@ def init_parser():
 
     parser.add_argument('--fixbase-epoch', type=int, default=0,
                         help='number of epochs to fix base layers')
-    parser.add_argument('--pretrain-3d-epoch', type=int, default=0,
-                        help='number of epochs to pretrain 3d layers')
     parser.add_argument('--open-layers', type=str, nargs='+', default=None,
                         help='open specified layers for training while keeping others frozen')
     parser.add_argument('--fixed-layers', type=str, nargs='+', default=None,
@@ -191,8 +188,6 @@ def init_parser():
                         help='visualize topk ranks')
     parser.add_argument('--visactmap', action='store_true',
                         help='visualize CNN activation maps')
-    parser.add_argument('--save-3d-param', action='store_true',
-                        help='save 3d param')
 
     # ************************************************************
     # Miscs
@@ -283,14 +278,11 @@ def engine_kwargs(parsed_args):
         'ranks': parsed_args.ranks,
         'rerank': parsed_args.rerank,
         'if_visactmap': parsed_args.visactmap,
-        'if_save_param': parsed_args.save_3d_param,
         'margin': parsed_args.margin,
         'label_smooth': parsed_args.label_smooth,
         'height': parsed_args.height,   # visualize ranklist
         'width': parsed_args.width,
-        'flag_3d': parsed_args.flag_3d,
         'flag_general': parsed_args.flag_general,
         'batch_size': parsed_args.batch_size,
-        'pretrain_3d_epoch': parsed_args.pretrain_3d_epoch,
         'joint_loss_weight': parsed_args.joint_loss_weight
     }

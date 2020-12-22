@@ -1,17 +1,18 @@
 from .dataset import *
 from .dataset import *
 from .prcc import *
-from .prcc_3d_relabel import *
 from .market import *
+from .dukemtmcreid import *
 from .vc_clothes import *
+from .biwi import *
 
 __image_datasets = {
-    'prcc3d': PRCC3D,
-    'prcc_3d_relabel': PRCC_3D_RELABEL,
+    'prcc': PRCC,
     'market': Market,
-    'vc-clothes': VC_Clothes
+    'dukemtmc': DukeMTMCreID,
+    'vc-clothes': VC_Clothes,
+    'biwi': BIWI
 }
-
 
 def init_image_dataset(name, **kwargs):
     """Initializes an image dataset."""

@@ -9,5 +9,3 @@ from .model_complexity import *
 from .avgmeter import *
 from .rerank import *
 from .orthogonal import *
-from .cal_smpl_statistics import smpl_statistics
-from .tools3d import *

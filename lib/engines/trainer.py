@@ -8,7 +8,6 @@ import torch.nn.functional as F
 
 from lib.utils import AverageMeter, open_all_layers, open_specified_layers, OFPenalty
 from lib.losses import *
-from lib.optim import CosineAnnealingWarmUp
 
 
 class Trainer(object):
@@ -17,21 +16,8 @@ class Trainer(object):
                  print_freq=10, margin=0.3, label_smooth=True, save_dir=None, **kwargs):
         self.trainloader = trainloader
         self.model = model
-        # self.optimizer = optimizer
-        # self.scheduler = scheduler
-
-        self.optimizer3d_enc, self.optimizer_reid = optimizer
-        # self.optimizer_reid = optimizer[0]
-        self.scheduler = CosineAnnealingWarmUp(self.optimizer_reid, T_0=5,
-                                               T_end=80, warmup_factor=0,
-                                               last_epoch=-1)
-
-        self.scheduler3d_enc = torch.optim.lr_scheduler.MultiStepLR(
-            self.optimizer3d_enc,
-            milestones=[20, 40],
-            gamma=0.9
-        )
-
+        self.optimizer = optimizer
+        self.scheduler = scheduler
         self.use_gpu = use_gpu
         self.train_len = len(self.trainloader)
         self.max_epoch = max_epoch
@@ -41,39 +27,14 @@ class Trainer(object):
         self.save_dir = save_dir
 
         self.criterion_x = nn.CrossEntropyLoss().cuda()
-        # self.criterion_x = CrossEntropyLoss(
-        #     num_classes=num_train_pids,
-        #     use_gpu=self.use_gpu,
-        #     label_smooth=label_smooth
-        # )
         self.criterion_t = TripletLoss(margin=margin)
+        self.criterion_dim = DeepInfoMaxLoss(margin=0.8)
 
-        # self.criterion_kl = torch.nn.KLDivLoss(reduction='batchmean')
-
-        # self.criterion_t_sen = TripletLoss_Cloth_Sen(margin=margin, num_class=num_train_pids)
-        # self.criterion_x_sen = CrossEntropyLoss(
-        #     num_classes=num_train_pids*2,
-        #     use_gpu=self.use_gpu,
-        #     label_smooth=label_smooth
-        # )
-
-        # self.criterion_t_insen = TripletLoss_Cloth_Insen(margin=margin, num_class=num_train_pids)
-        # self.criterion_x_insen = CrossEntropyLoss(
-        #     num_classes=num_train_pids,
-        #     use_gpu=self.use_gpu,
-        #     label_smooth=label_smooth
-        # )
-
-        # orthogonal constraint
-        # self.of_penalty = OFPenalty()
-
-        self.pretrain_3d_epoch = 0  # just for prevent bugs, not for specific objects
-
-    def train(self, epoch, queryloader=None, **kwargs):
+    def train(self, epoch, **kwargs):
         losses = AverageMeter()
-        losses_trip1 = AverageMeter()
-        losses_cent1 = AverageMeter()
-        losses_dml = AverageMeter()
+        losses_trip = AverageMeter()
+        losses_cent = AverageMeter()
+        losses_dim = AverageMeter()
 
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -85,22 +46,20 @@ class Trainer(object):
         else:
             open_all_layers(self.model)
 
-        self.optimizer_reid.step()
         end = time.time()
         for batch_idx, data in enumerate(self.trainloader):
             data_time.update(time.time() - end)
 
             self.scheduler.step(epoch + float(batch_idx) / len(self.trainloader))
 
-            imgs, pids, inputs3d = self._parse_data(data)
+            imgs, contours, pids = self._parse_data(data)
             if self.use_gpu:
                 imgs = imgs.cuda()
+                contours = contours.cuda()
                 pids = pids.cuda()
-                inputs3d = inputs3d.cuda()
 
-            self.optimizer_reid.zero_grad()
-            self.optimizer3d_enc.zero_grad()
-            cent_items, trip_items = self.model(imgs, inputs3d)
+            self.optimizer.zero_grad()
+            cent_items, trip_items, ejs, ems, ejs_part, ems_part  = self.model(imgs, contours)
             losses_cent_list = list()
             for item in cent_items:
                 loss_cent = self._compute_loss(self.criterion_x, item, pids)
@@ -113,48 +72,25 @@ class Trainer(object):
             loss_cent_sum = torch.sum(torch.cat(losses_cent_list))
             loss_trip_sum = torch.sum(torch.cat(losses_trip_list))
 
-            # # deep mutual learning loss
-            # outputs1, outputs2 = cent_items
-            # loss_dml1 = self.criterion_kl(F.log_softmax(outputs1, dim=1), F.softmax(outputs2, dim=1))
-            # loss_dml2 = self.criterion_kl(F.log_softmax(outputs2, dim=1), F.softmax(outputs1, dim=1))
-            # loss_dml = loss_dml1 + loss_dml2
+            # calculate dim loss
+            loss_dim1 = self._compute_loss(self.criterion_dim, ejs, ems)
+            loss_dim2 = self._compute_loss(self.criterion_dim, ejs_part, ems_part)
+            loss_dim = loss_dim1 + loss_dim2
 
-            # cloth_insen_items, cloth_sen_items, orthogonal_items = self.model(imgs)
-            #
-            # loss_cent_insen = self._compute_loss(self.criterion_x_insen, cloth_insen_items[0], pids)
-            # loss_trip_insen = self._compute_loss(self.criterion_t_insen, cloth_insen_items[1], pids_relabel)
-            # loss_cent_sen = self._compute_loss(self.criterion_x_sen, cloth_sen_items[0], pids_relabel)
-            # loss_trip_sen = self._compute_loss(self.criterion_t_sen, cloth_sen_items[1], pids_relabel)
-
-            # # orthogonal loss
-            # combine_feat0 = torch.cat([orthogonal_items[0].unsqueeze(2).unsqueeze(3), orthogonal_items[1].unsqueeze(2).unsqueeze(3)], dim=2)
-            # combine_feat1 = torch.cat([orthogonal_items[2].unsqueeze(2).unsqueeze(3), orthogonal_items[3].unsqueeze(2).unsqueeze(3)], dim=2)
-            # loss_of = self.of_penalty(combine_feat0) + self.of_penalty(combine_feat1)
-
-            # loss = loss_cent_insen + loss_trip_insen + loss_cent_sen + loss_trip_sen + loss_of * 5
-            # loss = loss_cent_insen + loss_trip_insen + loss_cent_sen + loss_trip_sen
-            loss = loss_cent_sum + loss_trip_sum
+            loss = loss_cent_sum + loss_trip_sum + loss_dim
 
             # add apex setting
             # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
             #     scaled_loss.backward()
             loss.backward()
-            self.optimizer_reid.step()
-            self.optimizer3d_enc.step()
+            self.optimizer.step()
 
             batch_time.update(time.time() - end)
 
             losses.update(loss.item(), pids.size(0))
-            losses_cent1.update(loss_cent_sum.item()/len(cent_items), pids.size(0))
-            losses_trip1.update(loss_trip_sum.item()/len(trip_items), pids.size(0))
-            # losses_dml.update(loss_dml.item(), pids.size(0))
-
-            # losses_cent1.update(loss_cent_insen.item(), pids.size(0))
-            # losses_trip1.update(loss_trip_insen.item(), pids.size(0))
-            # losses_cent2.update(loss_cent_sen.item(), pids.size(0))
-            # losses_trip2.update(loss_trip_sen.item(), pids.size(0))
-
-            # losses_of.update(loss_of.item(), pids.size(0))
+            losses_cent.update(loss_cent_sum.item()/len(cent_items), pids.size(0))
+            losses_trip.update(loss_trip_sum.item()/len(trip_items), pids.size(0))
+            losses_dim.update(loss_dim.item(), pids.size(0))
 
             if (batch_idx) % self.print_freq == 0:
                 # estimate remaining time
@@ -168,34 +104,31 @@ class Trainer(object):
                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                       'C {loss_cent1.val:.4f} ({loss_cent1.avg:.4f})\t'
                       'T {loss_trip1.val:.4f} ({loss_trip1.avg:.4f})\t'
-                      'DML {loss_dml.val:.4f} ({loss_dml.avg:.4f})\t'
+                      'DIM {loss_dim.val:.4f} ({loss_dim.avg:.4f})\t'
                       'Lr1 {lr:.6f}\t'
                       'Eta {eta}'.format(
                     epoch + 1, self.max_epoch, batch_idx + 1, self.train_len,
                     batch_time=batch_time,
                     data_time=data_time,
                     loss=losses,
-                    loss_cent1=losses_cent1,
-                    loss_trip1=losses_trip1,
-                    loss_dml=losses_dml,
-                    lr=self.optimizer_reid.param_groups[0]['lr'],
+                    loss_cent1=losses_cent,
+                    loss_trip1=losses_trip,
+                    loss_dim=losses_dim,
+                    lr=self.optimizer.param_groups[0]['lr'],
                     eta=eta_str
                 )
                 )
 
             end = time.time()
 
-        # if self.scheduler is not None:
-        #     self.scheduler.step()
-        self.scheduler3d_enc.step()
+        self.scheduler.step()
 
     def _parse_data(self, data):
         imgs = data[0]
-        pids = data[1]
-        inputs3d = data[6]
-        # pids_relabel = data[8]
+        contours = data[1]
+        pids = data[2]
 
-        return imgs, pids, inputs3d
+        return imgs, contours, pids
 
     def _compute_loss(self, criterion, outputs, targets):
         if isinstance(outputs, (tuple, list)):

@@ -198,7 +198,7 @@ class MyModel(nn.Module):
             self.fc = self._construct_fc_layer(fc_dims, 512 * block_rgb.expansion, dropout_p)
 
         # backbone network for contour feature extraction
-        self.inplanes = 64  # 因为前面self._make_layer会改变self.inplanes的值
+        self.inplanes = 64
         self.conv1_contour = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1_contour = nn.BatchNorm2d(64)
         self.layer1_contour = self._make_layer(block_contour, 64, layers_contour[0])
@@ -216,10 +216,6 @@ class MyModel(nn.Module):
         self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
         self.classifier_contour = nn.Linear(self.feature_dim, num_classes, bias=False)
         self.classifier_fuse = nn.Linear(self.feature_dim, num_classes, bias=False)
-
-
-        # for name, module in self.named_modules():
-        #     print(name, module)
 
         self._init_params()
 
@@ -367,14 +363,6 @@ class MyModel(nn.Module):
         v_fuse_new = self.bnneck_fuse(v_fuse)
 
         if not self.training:
-            # test_feat0 = F.normalize(v1, p=2, dim=1)
-            # test_feat1 = F.normalize(v2, p=2, dim=1)
-            # test_feat2 = F.normalize(v_fuse, p=2, dim=1)
-            # test_feat3 = torch.cat([test_feat0, test_feat1], dim=1)
-            # test_feat4 = torch.cat([test_feat0, test_feat2], dim=1)
-            # test_feat5 = torch.cat([test_feat1, test_feat2], dim=1)
-            # test_feat6 = torch.cat([test_feat0, test_feat1, test_feat2], dim=1)
-
             test_feat0 = torch.cat([F.normalize(v1_new, p=2, dim=1),
                                     F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
             test_feat1 = F.normalize(v2_new, p=2, dim=1)
@@ -396,26 +384,9 @@ class MyModel(nn.Module):
         y2 = self.classifier_contour(v2_new)
         y_fuse = self.classifier_fuse(v_fuse_new)
 
-        if self.loss == 'softmax':
-            return y1, y1_parts, y2, y_fuse
-        elif self.loss == 'triplet_baseline':
-            # v1 = F.normalize(v1, p=2, dim=1)
-            # v2 = F.normalize(v2, p=2, dim=1)
-            # v_fuse = F.normalize(v_fuse, p=2, dim=1)
-            return y1, y1_parts, y2, y_fuse, v1, v1_parts.view(v1_parts.size(0), -1), v2, v_fuse
-        else:
-            raise KeyError("Unsupported loss: {}".format(self.loss))
 
-# def init_pretrained_weights(model, model_url):
-#     """Initializes model with pretrained weights.
-#
-#     Layers that don't match with pretrained layers in name or size are kept unchanged.
-#     """
-#     pretrain_dict = model_zoo.load_url(model_url)
-#     model_dict = model.state_dict()
-#     pretrain_dict = {k: v for k, v in pretrain_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
-#     model_dict.update(pretrain_dict)
-#     model.load_state_dict(model_dict)
+        return [y1, y1_parts, y2, y_fuse], [v1, v1_parts.view(v1_parts.size(0), -1), v2, v_fuse]
+
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.
@@ -437,46 +408,6 @@ def init_pretrained_weights(model, model_url):
     model_dict.update(pretrain_dict_)
     model.load_state_dict(model_dict)
 
-# def init_pretrained_weights_hybrid(model, model_url1, model_url2):
-#     """
-#     Initialize model with pretrained weights.
-#     Layers that don't match with pretrained layers in name or size are kept unchanged.
-#     """
-#     '''
-#     model_url1: 对应img模块的网络架构
-#     model_url2: 对应sketch模块的网络架构
-#     '''
-#     pretrain_dict1 = model_zoo.load_url(model_url1)
-#     pretrain_dict2 = model_zoo.load_url(model_url2)
-#     model_dict = model.state_dict()
-#
-#     pretrain_dict1_match = {k: v for k, v in pretrain_dict1.items() if k in model_dict and model_dict[k].size() == v.size()}
-#     model_dict.update(pretrain_dict1_match)
-#
-#     # 利用预训练模型初始化sketch feature的网络
-#     pretrain_dict2_match = {}
-#     for k, v in pretrain_dict2.items():
-#         '''
-#         k的格式如：
-#         layer4.2.conv1.weight    layer4.2.conv1.weight
-#         layer4.2.bn1.running_mean    layer4.2.bn1.running_var
-#         layer4.2.bn1.weight    layer4.2.bn1.bias
-#         '''
-#         nameList = k.split('.')
-#         layer_name = ''
-#         for idx, part in enumerate(nameList):
-#             if idx == 0:
-#                 layer_name += (part + '_aux')
-#             else:
-#                 layer_name += ('.' + part)
-#
-#         if layer_name in model_dict and model_dict[layer_name].size() == v.size():
-#             pretrain_dict2_match[layer_name] = v
-#     model_dict.update(pretrain_dict2_match)
-#
-#     model.load_state_dict(model_dict)
-#     print("Initialized model with pretrained weights from {}".format(model_url1))
-#     print("Initialized model with pretrained weights from {}".format(model_url2))
 
 def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     """

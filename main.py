@@ -21,7 +21,6 @@ from lib.utils import DataWarpper, Logger
 from lib.utils import (build_transforms, build_train_sampler, load_pretrained_weights,
                        resume_from_checkpoint, check_isfile, collect_env_info, set_random_seed,
                        compute_model_complexity)
-from lib.utils import smpl_statistics
 
 parser = init_parser()
 args = parser.parse_args()
@@ -58,7 +57,7 @@ def main():
     dataset = init_image_dataset(name=data_args['source'], **data_args)
 
     # build data transformer
-    transforms_tr, transforms_te, transforms_3d = build_transforms(**data_args)
+    transforms_tr, transforms_te, transforms_co = build_transforms(**data_args)
 
     # load train data
     trainset = dataset.train
@@ -69,7 +68,7 @@ def main():
         num_train_pids=dataset.num_train_pids
     )
     trainloader = torch.utils.data.DataLoader(
-        DataWarpper(data=trainset, transforms1=transforms_tr, transforms2=transforms_3d),
+        DataWarpper(data=trainset, transforms1=transforms_tr, transforms2=transforms_co),
         sampler=train_sampler,
         batch_size=data_args['batch_size'],
         shuffle=False,
@@ -81,7 +80,7 @@ def main():
     # load test data
     queryset = dataset.query
     queryloader = torch.utils.data.DataLoader(
-        DataWarpper(data=queryset, transforms1=transforms_te, transforms2=transforms_3d, if_train=False),
+        DataWarpper(data=queryset, transforms_rgb=transforms_te, transforms_contour=transforms_co),
         batch_size=data_args['batch_size'],
         shuffle=False,
         num_workers=data_args['workers'],
@@ -91,7 +90,7 @@ def main():
 
     galleryset = dataset.gallery
     galleryloader = torch.utils.data.DataLoader(
-        DataWarpper(data=galleryset, transforms1=transforms_te, transforms2=transforms_3d, if_train=False),
+        DataWarpper(data=galleryset, transforms_rgb=transforms_te, transforms_contour=transforms_co),
         batch_size=data_args['batch_size'],
         shuffle=False,
         num_workers=data_args['workers'],
