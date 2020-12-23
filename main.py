@@ -57,7 +57,7 @@ def main():
     dataset = init_image_dataset(name=data_args['source'], **data_args)
 
     # build data transformer
-    transforms_tr, transforms_te, transforms_co = build_transforms(**data_args)
+    transforms_tr, transforms_te = build_transforms(**data_args)
 
     # load train data
     trainset = dataset.train
@@ -68,7 +68,7 @@ def main():
         num_train_pids=dataset.num_train_pids
     )
     trainloader = torch.utils.data.DataLoader(
-        DataWarpper(data=trainset, transforms_rgb=transforms_tr, transforms_contour=transforms_co),
+        DataWarpper(data=trainset, transforms=transforms_tr),
         sampler=train_sampler,
         batch_size=data_args['batch_size'],
         shuffle=False,
@@ -80,7 +80,7 @@ def main():
     # load test data
     queryset = dataset.query
     queryloader = torch.utils.data.DataLoader(
-        DataWarpper(data=queryset, transforms_rgb=transforms_te, transforms_contour=transforms_co),
+        DataWarpper(data=queryset, transforms=transforms_te),
         batch_size=data_args['batch_size'],
         shuffle=False,
         num_workers=data_args['workers'],
@@ -90,7 +90,7 @@ def main():
 
     galleryset = dataset.gallery
     galleryloader = torch.utils.data.DataLoader(
-        DataWarpper(data=galleryset, transforms_rgb=transforms_te, transforms_contour=transforms_co),
+        DataWarpper(data=galleryset, transforms=transforms_te),
         batch_size=data_args['batch_size'],
         shuffle=False,
         num_workers=data_args['workers'],

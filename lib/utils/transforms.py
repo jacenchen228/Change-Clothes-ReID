@@ -3,101 +3,11 @@ import math
 import random
 import torch
 from PIL import Image
-from torchvision.transforms import (
-    Resize, Compose, ToTensor, Normalize, ColorJitter, RandomHorizontalFlip, Pad, RandomCrop
+
+from .transforms_func import (
+    Resize, Compose, ToTensor, Normalize, ColorJitter, RandomHorizontalFlip, RandomCrop, Pad,
+    Random2DTranslation, RandomErasing
 )
-
-
-class Random2DTranslation(object):
-    """Randomly translates the input image with a probability.
-    Specifically, given a predefined shape (height, width), the input is first
-    resized with a factor of 1.125, leading to (height*1.125, width*1.125), then
-    a random crop is performed. Such operation is done with a probability.
-    Args:
-        height (int): target image height.
-        width (int): target image width.
-        p (float, optional): probability that this operation takes place.
-            Default is 0.5.
-        interpolation (int, optional): desired interpolation. Default is
-            ``PIL.Image.BILINEAR``
-    """
-
-    def __init__(self, height, width, p=0.5, interpolation=Image.BILINEAR):
-        self.height = height
-        self.width = width
-        self.p = p
-        self.interpolation = interpolation
-
-    def __call__(self, img):
-        if random.uniform(0, 1) > self.p:
-            return img.resize((self.width, self.height), self.interpolation)
-
-        new_width, new_height = int(round(self.width * 1.125)
-                                    ), int(round(self.height * 1.125))
-        resized_img = img.resize((new_width, new_height), self.interpolation)
-        x_maxrange = new_width - self.width
-        y_maxrange = new_height - self.height
-        x1 = int(round(random.uniform(0, x_maxrange)))
-        y1 = int(round(random.uniform(0, y_maxrange)))
-        croped_img = resized_img.crop(
-            (x1, y1, x1 + self.width, y1 + self.height)
-        )
-        return croped_img
-
-
-class RandomErasing(object):
-    """Randomly erases an image patch.
-    Origin: `<https://github.com/zhunzhong07/Random-Erasing>`_
-    Reference:
-        Zhong et al. Random Erasing Data Augmentation.
-    Args:
-        probability (float, optional): probability that this operation takes place.
-            Default is 0.5.
-        sl (float, optional): min erasing area.
-        sh (float, optional): max erasing area.
-        r1 (float, optional): min aspect ratio.
-        mean (list, optional): erasing value.
-    """
-
-    def __init__(
-            self,
-            probability=0.5,
-            sl=0.02,
-            sh=0.4,
-            r1=0.3,
-            mean=[0.4914, 0.4822, 0.4465]
-    ):
-        self.probability = probability
-        self.mean = mean
-        self.sl = sl
-        self.sh = sh
-        self.r1 = r1
-
-    def __call__(self, img):
-        if random.uniform(0, 1) > self.probability:
-            return img
-
-        for attempt in range(100):
-            area = img.size()[1] * img.size()[2]
-
-            target_area = random.uniform(self.sl, self.sh) * area
-            aspect_ratio = random.uniform(self.r1, 1 / self.r1)
-
-            h = int(round(math.sqrt(target_area * aspect_ratio)))
-            w = int(round(math.sqrt(target_area / aspect_ratio)))
-
-            if w < img.size()[2] and h < img.size()[1]:
-                x1 = random.randint(0, img.size()[1] - h)
-                y1 = random.randint(0, img.size()[2] - w)
-                if img.size()[0] == 3:
-                    img[0, x1:x1 + h, y1:y1 + w] = self.mean[0]
-                    img[1, x1:x1 + h, y1:y1 + w] = self.mean[1]
-                    img[2, x1:x1 + h, y1:y1 + w] = self.mean[2]
-                else:
-                    img[0, x1:x1 + h, y1:y1 + w] = self.mean[0]
-                return img
-
-        return img
 
 
 class ColorAugmentation(object):
@@ -145,23 +55,17 @@ class FlipLR(object):
         img_flip = img.index_select(3, inv_idx)
         return img_flip
 
+
 def build_transforms(
         height,
         width,
         transforms='random_flip',
-        norm_mean=[0.485, 0.456, 0.406],
-        norm_std=[0.229, 0.224, 0.225],
-        **kwargs
-):
-    """Builds train and test transform functions.
-    Args:
-        height (int): target image height.
-        width (int): target image width.
-        transforms (str or list of str, optional): transformations applied to model training.
-            Default is 'random_flip'.
-        norm_mean (list or None, optional): normalization mean values. Default is ImageNet means.
-        norm_std (list or None, optional): normalization standard deviation values. Default is
-            ImageNet standard deviation values.
+        norm_mean1=[0.485, 0.456, 0.406],
+        norm_std1=[0.229, 0.224, 0.225],
+        norm_mean2=[0.0],
+        norm_std2=[1.0],
+        **kwargs):
+    """Builds train and test transform functions.s.
     """
     if transforms is None:
         transforms = []
@@ -179,10 +83,10 @@ def build_transforms(
     if len(transforms) > 0:
         transforms = [t.lower() for t in transforms]
 
-    if norm_mean is None or norm_std is None:
-        norm_mean = [0.485, 0.456, 0.406]  # imagenet mean
-        norm_std = [0.229, 0.224, 0.225]  # imagenet std
-    normalize = Normalize(mean=norm_mean, std=norm_std)
+    if norm_mean1 is None or norm_std1 is None:
+        norm_mean1 = [0.485, 0.456, 0.406]  # imagenet mean
+        norm_std1 = [0.229, 0.224, 0.225]  # imagenet std
+    normalize = Normalize(mean1=norm_mean1, std1=norm_std1, mean2=norm_mean2, std2=norm_std2)
 
     print('Building train transforms ...')
     transform_tr = []
@@ -219,19 +123,19 @@ def build_transforms(
     print('+ to torch tensor of range [0, 1]')
     transform_tr += [ToTensor()]
 
-    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
+    print('+ normalization (mean1={}, std1={}, mean2={}, std2={})'.format(norm_mean1, norm_std1, norm_mean2, norm_std2))
     transform_tr += [normalize]
 
     if 'random_erase' in transforms:
         print('+ random erase')
-        transform_tr += [RandomErasing(mean=norm_mean)]
+        transform_tr += [RandomErasing(mean=norm_mean1)]
 
     transform_tr = Compose(transform_tr)
 
     print('Building test transforms ...')
     print('+ resize to {}x{}'.format(height, width))
     print('+ to torch tensor of range [0, 1]')
-    print('+ normalization (mean={}, std={})'.format(norm_mean, norm_std))
+    print('+ normalization (mean1={}, std1={}, mean2={}, std2={})'.format(norm_mean1, norm_std1, norm_mean2, norm_std2))
 
     transform_te = Compose([
         Resize((height, width)),
