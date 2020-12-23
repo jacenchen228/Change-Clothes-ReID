@@ -128,7 +128,7 @@ def build_transforms(
 
     if 'random_erase' in transforms:
         print('+ random erase')
-        transform_tr += [RandomErasing(mean=norm_mean1)]
+        transform_tr += [RandomErasing(mean1=norm_mean1)]
 
     transform_tr = Compose(transform_tr)
 
@@ -143,16 +143,5 @@ def build_transforms(
         normalize,
     ])
 
-    # transform_3d = Compose([
-    #     Resize((height, width)),
-    #     ToTensor()
-    # ])
-
-    transform_co = Compose([
-        Resize((height, width)),
-        ToTensor(),
-        normalize
-    ])
-
-    return transform_tr, transform_te, transform_co
+    return transform_tr, transform_te
 

@@ -59,7 +59,13 @@ class Trainer(object):
                 pids = pids.cuda()
 
             self.optimizer.zero_grad()
-            cent_items, trip_items, ejs, ems, ejs_part, ems_part  = self.model(imgs, contours)
+
+            # loss for our model
+            # cent_items, trip_items, ejs, ems, ejs_part, ems_part = self.model(imgs, contours)
+
+            # loss for baseline model (without mutual infoamtion related loss)
+            cent_items, trip_items = self.model(imgs, contours)
+
             losses_cent_list = list()
             for item in cent_items:
                 loss_cent = self._compute_loss(self.criterion_x, item, pids)
@@ -72,12 +78,13 @@ class Trainer(object):
             loss_cent_sum = torch.sum(torch.cat(losses_cent_list))
             loss_trip_sum = torch.sum(torch.cat(losses_trip_list))
 
-            # calculate dim loss
-            loss_dim1 = self._compute_loss(self.criterion_dim, ejs, ems)
-            loss_dim2 = self._compute_loss(self.criterion_dim, ejs_part, ems_part)
-            loss_dim = loss_dim1 + loss_dim2
+            loss = loss_cent_sum + loss_trip_sum
 
-            loss = loss_cent_sum + loss_trip_sum + loss_dim
+            # # calculate dim loss
+            # loss_dim1 = self._compute_loss(self.criterion_dim, ejs, ems)
+            # loss_dim2 = self._compute_loss(self.criterion_dim, ejs_part, ems_part)
+            # loss_dim = loss_dim1 + loss_dim2
+            # loss += loss_dim
 
             # add apex setting
             # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
@@ -90,7 +97,7 @@ class Trainer(object):
             losses.update(loss.item(), pids.size(0))
             losses_cent.update(loss_cent_sum.item()/len(cent_items), pids.size(0))
             losses_trip.update(loss_trip_sum.item()/len(trip_items), pids.size(0))
-            losses_dim.update(loss_dim.item(), pids.size(0))
+            # losses_dim.update(loss_dim.item(), pids.size(0))
 
             if (batch_idx) % self.print_freq == 0:
                 # estimate remaining time

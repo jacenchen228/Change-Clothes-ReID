@@ -24,6 +24,11 @@ else:
     Sequence = collections.abc.Sequence
     Iterable = collections.abc.Iterable
 
+"""
+Transform functions modified from the original implementation of torchvision,
+which transform rgb and contour images simultaneously
+
+"""
 __all__ = ["Compose", "ToTensor", "Normalize", "Resize",  "RandomHorizontalFlip", "RandomErasing",
            "RandomCrop", "Random2DTranslation", "Pad"]
 
@@ -256,17 +261,17 @@ class RandomCrop(object):
             # As the value 255.0 means the background of contour images,
             # here we pad contour images with value 255.0
             img1 = F.pad(img1, self.padding, self.fill, self.padding_mode)
-            img2 = F.pad(img2, self.padding, 255.0, self.padding_mode)
+            img2 = F.pad(img2, self.padding, 255, self.padding_mode)
 
         # pad the width if needed
         if self.pad_if_needed and img1.size[0] < self.size[1]:
             img1 = F.pad(img1, (self.size[1] - img1.size[0], 0), self.fill, self.padding_mode)
-            img2 = F.pad(img2, (self.size[1] - img2.size[0], 0), 255.0, self.padding_mode)
+            img2 = F.pad(img2, (self.size[1] - img2.size[0], 0), 255, self.padding_mode)
 
         # pad the height if needed
         if self.pad_if_needed and img1.size[1] < self.size[0]:
             img1 = F.pad(img1, (0, self.size[0] - img1.size[1]), self.fill, self.padding_mode)
-            img2 = F.pad(img2, (0, self.size[0] - img2.size[1]), 255.0, self.padding_mode)
+            img2 = F.pad(img2, (0, self.size[0] - img2.size[1]), 255, self.padding_mode)
 
         i, j, h, w = self.get_params(img1, self.size)
 
@@ -391,8 +396,8 @@ class Pad(object):
         """
 
         # As the value 255.0 means the background of contour images,
-        # here we pad contour images with value 255.0
-        return F.pad(img1, self.padding, self.fill, self.padding_mode), F.pad(img2, self.padding, 255.0, self.padding_mode)
+        # here we pad contour images with value 255
+        return F.pad(img1, self.padding, self.fill, self.padding_mode), F.pad(img2, self.padding, 255, self.padding_mode)
 
     def __repr__(self):
         return self.__class__.__name__ + '(padding={0}, fill={1}, padding_mode={2})'.\
