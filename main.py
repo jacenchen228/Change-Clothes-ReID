@@ -106,7 +106,6 @@ def main():
         use_gpu=use_gpu,
         batch_size=args.batch_size
     )
-    model = model.cuda()
 
     # num_params, flops = compute_model_complexity(model, (1, 3, args.height, args.width))
     # print('Model complexity: params={:,} flops={:,}'.format(num_params, flops))
@@ -118,13 +117,13 @@ def main():
 
     scheduler = build_lr_scheduler(optimizer, **lr_scheduler_kwargs(args))
 
-    # model, optimizer = amp.initialize(model, optimizer,
-    #                                   opt_level="O1",
-    #                                   keep_batchnorm_fp32=None,
-    #                                   loss_scale=None)
+    model, optimizer = amp.initialize(model, optimizer,
+                                      opt_level="O1",
+                                      keep_batchnorm_fp32=None,
+                                      loss_scale=None)
 
-    # if use_gpu:
-    #     model = nn.DataParallel(model)
+    if use_gpu:
+        model = nn.DataParallel(model).cuda()
 
     if args.resume and check_isfile(args.resume):
         args.start_epoch = resume_from_checkpoint(args.resume, model, optimizer=optimizer)

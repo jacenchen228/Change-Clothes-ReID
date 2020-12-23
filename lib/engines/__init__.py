@@ -12,8 +12,15 @@ from .evaluatorGeneral import EvaluatorGeneral
 
 
 ID2FEAT_NAME = {
-    0: 'ori'
+    0: 'feat 0',
+    1: 'feat 1',
+    2: 'feat 2',
+    3: 'feat 3',
+    4: 'feat 4',
+    5: 'feat 5',
+    6: 'feat 6'
 }
+
 
 class Engine(object):
     def __init__(self, trainloader, queryloader, galleryloader, model, optimizer, lr_scheduler,
@@ -25,9 +32,6 @@ class Engine(object):
         self.optimizer = optimizer
         self.visualize_freq = 10
         self.model = model
-
-        model = nn.DataParallel(model)
-        model = model.cuda()
 
         self.trainer = Trainer(trainloader, model, optimizer, lr_scheduler, **kwargs)
         if flag_general:

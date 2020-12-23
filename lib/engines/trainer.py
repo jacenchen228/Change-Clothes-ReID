@@ -87,9 +87,10 @@ class Trainer(object):
             # loss += loss_dim
 
             # add apex setting
-            # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-            #     scaled_loss.backward()
-            loss.backward()
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            # loss.backward()
+
             self.optimizer.step()
 
             batch_time.update(time.time() - end)

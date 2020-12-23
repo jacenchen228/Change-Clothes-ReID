@@ -17,7 +17,8 @@ ID2FEAT_NAME = {
     2: 'feat 2',
     3: 'feat 3',
     4: 'feat 4',
-    5: 'feat 5'
+    5: 'feat 5',
+    6: 'feat 6'
 }
 
 
