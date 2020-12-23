@@ -68,7 +68,7 @@ def main():
         num_train_pids=dataset.num_train_pids
     )
     trainloader = torch.utils.data.DataLoader(
-        DataWarpper(data=trainset, transforms1=transforms_tr, transforms2=transforms_co),
+        DataWarpper(data=trainset, transforms_rgb=transforms_tr, transforms_contour=transforms_co),
         sampler=train_sampler,
         batch_size=data_args['batch_size'],
         shuffle=False,

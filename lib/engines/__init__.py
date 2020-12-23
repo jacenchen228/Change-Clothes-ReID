@@ -35,7 +35,7 @@ class Engine(object):
         else:
             self.evaluator = Evaluator(queryloader, galleryloader, model, **kwargs)
 
-    def run(self, max_epoch, test_only, eval_freq, if_visactmap, save_dir, if_save_param, **kwargs):
+    def run(self, max_epoch, test_only, eval_freq, if_visactmap, save_dir, **kwargs):
 
         if test_only:
             self.evaluator.evaluate()

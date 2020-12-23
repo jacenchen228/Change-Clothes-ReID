@@ -27,14 +27,18 @@ def read_image(path, flag=False):
     while not got_img:
         try:
             if flag == True:
-                img = Image.open(path).convert('RGB')
+                img_ = Image.open(path).convert('RGB')
             else:
+                # fix the bug about opening too many I/O fds
+                # copy to a new object (i.e. img_) and then close the original fd
                 img = Image.open(path)
+                img_ = img.copy()
+                img.close()
             got_img = True
         except IOError:
             print('IOError incurred when reading "{}". Will redo. Don\'t worry. Just chill.'.format(path))
             pass
-    return img
+    return img_
 
 
 def check_isfile(fpath):
