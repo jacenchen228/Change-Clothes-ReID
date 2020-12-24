@@ -42,7 +42,7 @@ class VC_Clothes(ImageDataset):
 
         pid_container = set()
         for idx, item in enumerate(datalist):
-            _, pid, _ = item.split()
+            _, pid = item.split()
 
             pid = int(pid)
             pid_container.add(pid)
@@ -50,7 +50,8 @@ class VC_Clothes(ImageDataset):
 
         data = []
         for idx, item in enumerate(datalist):
-            img_rel_path, pid, camid = item.split()
+            img_rel_path, pid = item.split()
+            camid = osp.basename(img_rel_path).split('-')[1]
 
             img_path = osp.join(dir_path, img_rel_path)
             img = read_image(img_path, True)
@@ -61,7 +62,7 @@ class VC_Clothes(ImageDataset):
             if not if_test: pid = pid2label[pid]
 
             if opt == 'gallery':
-                if camid == 2:
+                if camid == 4:
                     data.append((img_path, pid, camid, img, contour_img))
             elif opt == 'query':
                 if camid == 3:

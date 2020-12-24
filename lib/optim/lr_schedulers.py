@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 AVAI_SCH = ['single_step', 'multi_step', 'cos_annealling']
 
 
-def build_lr_scheduler(optimizer, lr_scheduler, stepsize, gamma=0.1):
+def build_lr_scheduler(optimizer, lr_scheduler, stepsize, max_epoch, gamma=0.1):
     """A function wrapper for building a learning rate scheduler.
 
     Args:
@@ -62,7 +62,7 @@ def build_lr_scheduler(optimizer, lr_scheduler, stepsize, gamma=0.1):
     elif lr_scheduler == 'cos_annealling':
         scheduler = CosineAnnealingWarmUp(optimizer,
                                           T_0=5,
-                                          T_end=80,
+                                          T_end=max_epoch,
                                           warmup_factor=0,
                                           last_epoch=-1)
 

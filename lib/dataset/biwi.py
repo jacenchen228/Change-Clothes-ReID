@@ -17,7 +17,8 @@ class BIWI(ImageDataset):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.trainlist_path = osp.join(self.dataset_dir, 'list/train.txt')
-        self.querylist_path = osp.join(self.dataset_dir, 'list/query.txt')
+        self.querylist_path = osp.join(self.dataset_dir, 'list/query1.txt') # query1.txt -> Still Set
+        # self.querylist_path = osp.join(self.dataset_dir, 'list/query2.txt')  # query2.txt -> Walking Set
         self.gallerylist_path = osp.join(self.dataset_dir, 'list/gallery.txt')
 
         required_files = [
@@ -28,12 +29,12 @@ class BIWI(ImageDataset):
         ]
         self.check_before_run(required_files)
 
+        # we assume every samples in BIWI is captured under different camera views
+        self.cam_var = 0
+
         train = self.process_dir(self.dataset_dir, self.trainlist_path)
         query = self.process_dir(self.dataset_dir, self.querylist_path, if_test=True)
         gallery = self.process_dir(self.dataset_dir, self.gallerylist_path, if_test=True)
-
-        # we assume every samples in BIWI is captured under different camera views
-        self.cam_var = 0
 
         super(BIWI, self).__init__(train, query, gallery)
 

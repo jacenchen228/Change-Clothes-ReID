@@ -181,12 +181,15 @@ class MyModel(nn.Module):
                                        dilate=replace_stride_with_dilation[2])
         self.inplanes = 256 * block_rgb.expansion
         self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
         self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num_rgb, 1))
-        self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
+        # self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
+        reduce_dim = 768
+        self.embedding_layer = nn.Linear(4096, reduce_dim, bias=False)
 
         # bnneck layers
-        self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
-        self.bnneck_rgb_part = nn.BatchNorm1d(self.reduced_dim)
+        self.bnneck_rgb = nn.BatchNorm1d(reduce_dim)
+        # self.bnneck_rgb_part = nn.BatchNorm1d(self.reduced_dim)
 
         # fc layers definition
         if fc_dims is None:
@@ -195,8 +198,8 @@ class MyModel(nn.Module):
             self.fc = self._construct_fc_layer(fc_dims, 512 * block_rgb.expansion, dropout_p)
 
         # classifiers
-        self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
-        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num_rgb)])
+        self.classifier = nn.Linear(reduce_dim, num_classes, bias=False)
+        # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num_rgb)])
 
         self._init_params()
 
@@ -299,34 +302,42 @@ class MyModel(nn.Module):
         if return_featuremaps:
             return f1
 
-        v1 = self.global_avgpool(f1)
-        v1 = v1.view(v1.size(0), -1)
-        v1_parts = self.parts_avgpool_rgb(f1)
-        v1_parts = self.conv5(v1_parts)
+        v1_1 = self.global_avgpool(f1)
+        v1_1 = v1_1.view(v1_1.size(0), -1)
+        v1_2 = self.global_maxpool(f1)
+        v1_2 = v1_2.view(v1_2.size(0), -1)
+        v1 = self.embedding_layer(torch.cat([v1_1, v1_2], 1))
+
+        # v1_parts = self.parts_avgpool_rgb(f1)
+        # v1_parts = self.conv5(v1_parts)
 
         if self.fc is not None:
             v1 = self.fc(v1)
 
         v1_new = self.bnneck_rgb(v1)
-        v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
+        # v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
 
         if not self.training:
-
-            test_feat0 = torch.cat([F.normalize(v1, p=2, dim=1),
-                                    F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)], dim=1)
+            test_feat0 = F.normalize(v1_new, p=2, dim=1)
+            # test_feat1 = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
+            # test_feat2 = torch.cat([F.normalize(v1, p=2, dim=1),
+            #                         F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)], dim=1)
+            # test_feat3 = torch.cat([F.normalize(v1_new, p=2, dim=1),
+            #                         F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
             # return [test_feat0, test_feat1, test_feat2]
             return [test_feat0]
 
 
         y1 = self.classifier(v1_new)
-        y1_parts = []
-        for idx in range(self.part_num_rgb):
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            y1_part_i = self.classifiers_part[idx](v1_part_i)
-            y1_parts.append(y1_part_i)
+        # y1_parts = []
+        # for idx in range(self.part_num_rgb):
+        #     v1_part_i = v1_parts_new[:, :, idx]
+        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
+        #     y1_parts.append(y1_part_i)
 
-        return [y1, y1_parts], [v1, v1_parts.view(v1_parts.size(0), -1)]
+        # return [y1, y1_parts], [v1_new, v1_parts_new.view(v1_parts_new.size(0), -1)]
+        return [y1], [v1]
 
 
 def init_pretrained_weights(model, model_url):

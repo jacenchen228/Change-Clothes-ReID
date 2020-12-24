@@ -17,7 +17,8 @@ ID2FEAT_NAME = {
     2: 'feat 2',
     3: 'feat 3',
     4: 'feat 4',
-    5: 'feat 5'
+    5: 'feat 5',
+    6: 'feat 6'
 }
 
 
@@ -74,7 +75,7 @@ class EvaluatorGeneral(object):
             end = time.time()
 
             features_list = self._extract_features(imgs, contours)
-            features_list_flip = self._extract_features(imgs.flip(3), contours.flip(3))
+            # features_list_flip = self._extract_features(imgs.flip(3), contours.flip(3))
 
             batch_time.update(time.time() - end)
 
@@ -83,14 +84,15 @@ class EvaluatorGeneral(object):
                 features_ori = F.normalize(features_ori, p=2, dim=1)
                 features_ori = features_ori.data.cpu()
 
-                features_flip = features_list_flip[i]
-                features_flip = F.normalize(features_flip, p=2, dim=1)
-                features_flip = features_flip.data.cpu()
+                # features_flip = features_list_flip[i]
+                # features_flip = F.normalize(features_flip, p=2, dim=1)
+                # features_flip = features_flip.data.cpu()
 
-                features = (features_ori + features_flip) / 2
-                features = F.normalize(features, p=2, dim=1)
-
-                qf_dict[i].append(features)
+                # features = (features_ori + features_flip) / 2
+                # features = F.normalize(features, p=2, dim=1)
+                #
+                # qf_dict[i].append(features)
+                qf_dict[i].append(features_ori)
 
             q_pids.extend(pids)
             q_camids.extend(camids)
@@ -118,7 +120,7 @@ class EvaluatorGeneral(object):
             end = time.time()
 
             features_list = self._extract_features(imgs, contours)
-            features_list_flip = self._extract_features(imgs.flip(3), contours.flip(3))
+            # features_list_flip = self._extract_features(imgs.flip(3), contours.flip(3))
 
             batch_time.update(time.time() - end)
 
@@ -127,14 +129,15 @@ class EvaluatorGeneral(object):
                 features_ori = F.normalize(features_ori, p=2, dim=1)
                 features_ori = features_ori.data.cpu()
 
-                features_flip = features_list_flip[i]
-                features_flip = F.normalize(features_flip, p=2, dim=1)
-                features_flip = features_flip.data.cpu()
-
-                features = (features_ori + features_flip) / 2
-                features = F.normalize(features, p=2, dim=1)
-
-                gf_dict[i].append(features)
+                # features_flip = features_list_flip[i]
+                # features_flip = F.normalize(features_flip, p=2, dim=1)
+                # features_flip = features_flip.data.cpu()
+                #
+                # features = (features_ori + features_flip) / 2
+                # features = F.normalize(features, p=2, dim=1)
+                #
+                # gf_dict[i].append(features)
+                gf_dict[i].append(features_ori)
 
             g_pids.extend(pids)
             g_camids.extend(camids)

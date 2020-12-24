@@ -161,9 +161,7 @@ class MyModel(nn.Module):
         self.dilation = 1
         self.part_num_rgb = part_num_rgb
         self.part_num_contour = part_num_contour
-        print('part num of rgb is ', self.part_num_rgb)
-        print('part num of contour is', self.part_num_contour)
-        self.reduced_dim = 512
+        self.reduced_dim = 256
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
@@ -188,6 +186,7 @@ class MyModel(nn.Module):
         # self.layer4_part = self._make_layer(block_rgb, self.feature_dim_base, layers_rgb[3], stride=last_stride,
         #                                dilate=replace_stride_with_dilation[2])
         self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
         # self.global_avgpool = GeneralizedMeanPoolingP()
         self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num_rgb, 1))
         self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
@@ -410,10 +409,10 @@ class MyModel(nn.Module):
                                     F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
             test_feat1 = F.normalize(v2_new, p=2, dim=1)
             test_feat2 = F.normalize(v_fuse_new, p=2, dim=1)
-            test_feat3 = torch.cat([test_feat0, test_feat1], dim=1)
-            test_feat4 = torch.cat([test_feat0, test_feat2], dim=1)
-            test_feat5 = torch.cat([test_feat1, test_feat2], dim=1)
-            test_feat6 = torch.cat([test_feat0, test_feat1, test_feat2], dim=1)
+            test_feat3 = F.normalize(torch.cat([test_feat0, test_feat1], dim=1), p=2, dim=1)
+            test_feat4 = F.normalize(torch.cat([test_feat0, test_feat2], dim=1), p=2, dim=1)
+            test_feat5 = F.normalize(torch.cat([test_feat1, test_feat2], dim=1), p=2, dim=1)
+            test_feat6 = F.normalize(torch.cat([test_feat0, test_feat1, test_feat2], dim=1), p=2, dim=1)
 
             return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4, test_feat5, test_feat6]
 
@@ -457,7 +456,8 @@ class MyModel(nn.Module):
 
             height_record += self.part_height
 
-        return [y1, y1_parts, y2, y_fuse], [v1, v1_parts.view(v1_parts.size(0), -1), v2, v_fuse], ej, em, ej_part, em_part
+        return [y1, y1_parts, y2, y_fuse], [v1, v1_parts_new.view(v1_parts.size(0), -1), v2, v_fuse], \
+               ej, em, ej_part, em_part
 
 
 def init_pretrained_weights(model, model_url):

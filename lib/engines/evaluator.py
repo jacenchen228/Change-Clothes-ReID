@@ -10,6 +10,7 @@ from torch.nn import functional as F
 from lib.utils import AverageMeter
 from lib.utils import re_ranking, visualize_ranked_results
 from lib.metrics import compute_distance_matrix, evaluate_rank
+from lib.losses import normalize
 
 ID2FEAT_NAME = {
     0: 'feat 0',
@@ -75,6 +76,7 @@ class Evaluator(object):
             end = time.time()
 
             features_list = self._extract_features(imgs, contorus)
+            # features_list_ = self._extract_features(imgs.flip(3), contours.flip(3))
 
             # ######## specifiy for mhn ########
             # from lib.utils import FlipLR
@@ -107,7 +109,14 @@ class Evaluator(object):
             for i in range(len(features_list)):
                 features = features_list[i]
                 features = features.data.cpu()
+                # features_ = features_list_[i]
+                # features_ = features_.data.cpu()
+                #
+                # features_all = (features + features_) / 2
+                # features_all = normalize(features_all)
+
                 qf_dict[i].append(features)
+
             q_pids.extend(pids)
             q_camids.extend(camids)
 
@@ -133,6 +142,7 @@ class Evaluator(object):
 
             end = time.time()
             features_list = self._extract_features(imgs, contours)
+            # features_list_ = self._extract_features(imgs.flip(3), contours.flip(3))
 
             # ######## specifiy for mhn ########
             # n = imgs.shape[0]
@@ -161,7 +171,14 @@ class Evaluator(object):
             for i in range(len(features_list)):
                 features = features_list[i]
                 features = features.data.cpu()
+                # features_ = features_list_[i]
+                # features_ = features_.data.cpu()
+                #
+                # features_all = (features + features_) / 2
+                # features_all = normalize(features_all)
+
                 gf_dict[i].append(features)
+
             g_pids.extend(pids)
             g_camids.extend(camids)
 
