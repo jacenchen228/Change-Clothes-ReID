@@ -9,3 +9,5 @@ from .model_complexity import *
 from .avgmeter import *
 from .rerank import *
 from .orthogonal import *
+from .pooling import *
+from .gcn_layer import *

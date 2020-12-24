@@ -15,9 +15,9 @@ import torchvision
 import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
 
-from lib.utils.gcn_layer import GraphConvolution
 from lib.utils.DIM.model_ori import GlobalDiscriminator, PartDiscriminator
-
+from lib.utils import GraphConvolution
+from lib.utils import GeneralizedMeanPoolingP
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -187,7 +187,8 @@ class MyModel(nn.Module):
         self.inplanes = 256 * block_rgb.expansion
         # self.layer4_part = self._make_layer(block_rgb, self.feature_dim_base, layers_rgb[3], stride=last_stride,
         #                                dilate=replace_stride_with_dilation[2])
-        self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.global_avgpool = GeneralizedMeanPoolingP()
         self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num_rgb, 1))
         self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 
