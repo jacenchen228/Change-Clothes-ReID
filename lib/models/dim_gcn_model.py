@@ -187,8 +187,8 @@ class MyModel(nn.Module):
         self.inplanes = 256 * block_rgb.expansion
         # self.layer4_part = self._make_layer(block_rgb, self.feature_dim_base, layers_rgb[3], stride=last_stride,
         #                                dilate=replace_stride_with_dilation[2])
-        # self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.global_avgpool = GeneralizedMeanPoolingP()
+        self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.global_avgpool = GeneralizedMeanPoolingP()
         self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num_rgb, 1))
         self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 

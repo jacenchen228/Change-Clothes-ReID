@@ -5,11 +5,13 @@ import torch
 from .resnet import *
 from .my_baseline import *
 from .dim_gcn_model import *
+from .dim_gcn_modelv1 import dim_gcn_modelv1
 
 __model_factory = {
     'resnet50': resnet50,
     'baseline': my_baseline,
-    'dim_gcn_model': dim_gcn_model
+    'dim_gcn_model': dim_gcn_model,
+    'dim_gcn_modelv1': dim_gcn_modelv1
 }
 
 def show_avai_models():
