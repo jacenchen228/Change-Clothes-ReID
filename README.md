@@ -8,10 +8,11 @@ This is the implementation of a novel person re-id model combining RGB and conto
 - pytorch 1.2
 - torchvision 0.4.0
 - CUDA 10.0
+- apex
 
 ## Data Preparation
 
-We validate the performance of our model on 5 datasets including 2 large-scale datasets (Market1501, DukeMTMC-reID) and 3 clothing-confused datasets (PRCC, BIWI, VC-Clothes). Among clothing-confused datasets, PRCC, VC-Clothes and BIWI target at long-term person re-id in which the same pedestrian might change clothes.
+We validate the performance of our model on 3 clothing-confused datasets (PRCC, BIWI, VC-Clothes). Among clothing-confused datasets, PRCC, VC-Clothes and BIWI target at long-term person re-id in which the same pedestrian might change clothes.
 
 1. For all datasets, we recommend to generate data list files train.txt, query.txt and gallery.txt for train, query and gallery sets in the format as follows:
 
@@ -24,7 +25,9 @@ We validate the performance of our model on 5 datasets including 2 large-scale d
 
 2. Pretrained models are utilized to extract human contours to combine with RGB images and learn a powerful representation for clothing-change person re-id.
 
-- The keypoints estimator [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as white (represented by value 1). The predicted results would be put in the directory `contour/` and the directory would be arranged the same as the original dataset.
+- The contour extractor [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as black (represented by value 0). The predicted results would be put in the directory `contour/` and the directory would be arranged the same as the original dataset.
+
+The clothing-change datasets could be downloaded from ... The data directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration.
 
 ## Train and Test
 
@@ -38,13 +41,25 @@ For training, different datasets and training hyper-parameters could be choosen 
 
 For performance evaluation, the only hyper-parameter --evaluate should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
 
-    python main.py --evaluate -s prcc -t prcc --height 256 --width 128 --batch-size 64 -a baseline --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine 
+    python main.py --evaluate -s prcc -t prcc --height 256 --width 128 --batch-size 64 -a baseline --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
 
-There are two different evaluation protocols used in our experiments. If you use the evaluation protocol as Market1501, the hyper-parameter --flag-general should be added to the evaluation command line. In default, we choose the evaluation protocol as the PRCC dataset. 
+The pretrained model weights could be downloaded from [here]()(password: ). You could put the weight file in `$WEIGHT_PATH` and get start to evaluate model performances. 
 
 ### Performance
 #### PRCC
 |Model| Rank-1 | Rank-5 |
+|  :----:  |  :----:  | :----:  |
+| Baseline  |  | |
+| Our Model  |  | |
+
+#### BIWI
+|Model| Rank-1 | Rank-5 |
+|  :----:  |  :----:  | :----:  |
+| Baseline  |  | |
+| Our Model  |  | |
+
+#### VC-Clothes
+|Model| Rank-1 | mAP |
 |  :----:  |  :----:  | :----:  |
 | Baseline  |  | |
 | Our Model  |  | |
