@@ -43,10 +43,9 @@ For performance evaluation, the only hyper-parameter --evaluate should be added 
 There are two different evaluation protocols used in our experiments. If you use the evaluation protocol as Market1501, the hyper-parameter --flag-general should be added to the evaluation command line. In default, we choose the evaluation protocol as the PRCC dataset. 
 
 ### Performance
-|  PRCC  |
-|  ----  | ----  |
-| Rank-1 | Rank-5 |
-|  ----  | ----  |
-| 单元格  | 单元格 |
-| 单元格  | 单元格 |
-
+#### PRCC
+|Model| Rank-1 | Rank-5 |
+|  :----:  |  :----:  | :----:  |
+| Baseline  |  | |
+| Our Model  |  | |
+ 
