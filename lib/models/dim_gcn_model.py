@@ -405,16 +405,7 @@ class MyModel(nn.Module):
 
         if not self.training:
 
-            test_feat0 = torch.cat([F.normalize(v1_new, p=2, dim=1),
-                                    F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
-            test_feat1 = F.normalize(v2_new, p=2, dim=1)
-            test_feat2 = F.normalize(v_fuse_new, p=2, dim=1)
-            test_feat3 = F.normalize(torch.cat([test_feat0, test_feat1], dim=1), p=2, dim=1)
-            test_feat4 = F.normalize(torch.cat([test_feat0, test_feat2], dim=1), p=2, dim=1)
-            test_feat5 = F.normalize(torch.cat([test_feat1, test_feat2], dim=1), p=2, dim=1)
-            test_feat6 = F.normalize(torch.cat([test_feat0, test_feat1, test_feat2], dim=1), p=2, dim=1)
-
-            return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4, test_feat5, test_feat6]
+            return F.normalize(v_fuse_new, p=2, dim=1)
 
         y1 = self.classifier(v1_new)
         y1_parts = []
@@ -458,7 +449,6 @@ class MyModel(nn.Module):
 
         return [y1, y1_parts, y2, y_fuse], [v1, v1_parts_new.view(v1_parts.size(0), -1), v2, v_fuse], \
                ej, em, ej_part, em_part
-
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.

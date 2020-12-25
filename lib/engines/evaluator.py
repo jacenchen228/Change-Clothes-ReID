@@ -13,13 +13,7 @@ from lib.metrics import compute_distance_matrix, evaluate_rank
 from lib.losses import normalize
 
 ID2FEAT_NAME = {
-    0: 'feat 0',
-    1: 'feat 1',
-    2: 'feat 2',
-    3: 'feat 3',
-    4: 'feat 4',
-    5: 'feat 5',
-    6: 'feat 6'
+    0: 'fuse'
 }
 
 
@@ -78,32 +72,6 @@ class Evaluator(object):
             features_list = self._extract_features(imgs, contorus)
             # features_list_ = self._extract_features(imgs.flip(3), contours.flip(3))
 
-            # ######## specifiy for mhn ########
-            # from lib.utils import FlipLR
-            # fliplr = FlipLR()
-            #
-            # n = imgs.shape[0]
-            # parts = 6
-            # ff = torch.FloatTensor(n, 256, parts).zero_().cuda()
-            # for i in range(2):
-            #     if (i == 1):
-            #         imgs = fliplr(imgs)
-            #     input_img = Variable(imgs.cuda())
-            #
-            #     _, outputs = self.model(input_img)
-            #     outputs = outputs[0]
-            #     num = int(n)
-            #     for j in range(parts):
-            #         f = outputs[j*num:(j+1)*num,:].data
-            #         ff[:,:,j] = ff[:,:,j] + f
-            # fnorm = torch.norm(ff, p=2, dim=1, keepdim=True) * np.sqrt(parts)
-            # ff = ff.div(fnorm.expand_as(ff))
-            # ff = ff.view(ff.size(0), -1)
-            #
-            # features_list = [ff]
-            # ######## specifiy for mhn ########
-
-
             batch_time.update(time.time() - end)
 
             for i in range(len(features_list)):
@@ -143,28 +111,6 @@ class Evaluator(object):
             end = time.time()
             features_list = self._extract_features(imgs, contours)
             # features_list_ = self._extract_features(imgs.flip(3), contours.flip(3))
-
-            # ######## specifiy for mhn ########
-            # n = imgs.shape[0]
-            # parts = 6
-            # ff = torch.FloatTensor(n, 256, parts).zero_().cuda()
-            # for i in range(2):
-            #     if (i == 1):
-            #         imgs = fliplr(imgs)
-            #     input_img = Variable(imgs.cuda())
-            #
-            #     _, outputs = self.model(input_img)
-            #     outputs = outputs[0]
-            #     num = int(n)
-            #     for j in range(parts):
-            #         f = outputs[j*num:(j+1)*num,:].data
-            #         ff[:,:,j] = ff[:,:,j] + f
-            # fnorm = torch.norm(ff, p=2, dim=1, keepdim=True) * np.sqrt(parts)
-            # ff = ff.div(fnorm.expand_as(ff))
-            # ff = ff.view(ff.size(0), -1)
-            #
-            # features_list = [ff]
-            # ######## specifiy for mhn ########
 
             batch_time.update(time.time() - end)
 

@@ -5,14 +5,17 @@ from .market import *
 from .dukemtmcreid import *
 from .vc_clothes import *
 from .biwi import *
+from .biwi_walking import *
 
 __image_datasets = {
     'prcc': PRCC,
     'market': Market,
     'dukemtmc': DukeMTMCreID,
     'vc-clothes': VC_Clothes,
-    'biwi': BIWI
+    'biwi': BIWI,
+    'biwi_walking': BIWI_Walking
 }
+
 
 def init_image_dataset(name, **kwargs):
     """Initializes an image dataset."""

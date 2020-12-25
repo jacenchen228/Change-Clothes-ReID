@@ -18,7 +18,6 @@ class BIWI(ImageDataset):
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
         self.trainlist_path = osp.join(self.dataset_dir, 'list/train.txt')
         self.querylist_path = osp.join(self.dataset_dir, 'list/query1.txt') # query1.txt -> Still Set
-        # self.querylist_path = osp.join(self.dataset_dir, 'list/query2.txt')  # query2.txt -> Walking Set
         self.gallerylist_path = osp.join(self.dataset_dir, 'list/gallery.txt')
 
         required_files = [
