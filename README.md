@@ -21,15 +21,16 @@ We validate the performance of our model on 3 clothing-confused datasets (PRCC, 
         image_path3 person_id3 camera_id3
         ......
 
- For each line, different data items would be split by one space. All list files would be saved in the directory `list/`.
+ For each line, different data items would be split by one space. All list files would be saved in the directory `$DATA_ROOT/list/`.
 
 2. Pretrained models are utilized to extract human contours to combine with RGB images and learn a powerful representation for clothing-change person re-id.
 
-- The contour extractor [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as black (represented by value 0). The predicted results would be put in the directory `contour/` and the directory would be arranged the same as the original dataset.
+- The contour extractor [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as black (represented by value 0). The predicted results would be put in the directory `$DATA_ROOT/contour/` and the directory would be arranged the same as the original dataset.
 
-The clothing-change datasets could be downloaded from ... The dataset directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration. Taking the `PRCC` dataset as an example:
+3. The clothing-change datasets could be downloaded from ... The dataset directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration. Taking the `PRCC` dataset as an example:
 ```Shell
-
+unzip prcc.zip
+mv prcc/* $DATA_ROOT
 
 ```
 
@@ -45,9 +46,9 @@ For training, different datasets and training hyper-parameters could be choosen 
 
 For performance evaluation, the only hyper-parameter --evaluate should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
 ```Python
-    python main.py --evaluate -s prcc -t prcc -j 2 --height 256 --width 128 --batch-size 64 -a $MODEL_NAME --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
+    python main.py --evaluate -s $SOURCE_DATASET -t $TARGET_DATASET -j 2 --height 256 --width 128 --batch-size 64 -a $MODEL_NAME --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
 ```
-The pretrained model weights could be downloaded from [here]()(password: ). You could put the weight file in `$WEIGHT_PATH` and get start to evaluate model performances. 
+The pretrained model weights could be downloaded from [here]()(password: ). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performance which is shown in the following.  
 
 ### Performance
 #### PRCC
