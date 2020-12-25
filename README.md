@@ -46,13 +46,13 @@ For training, different datasets and training hyper-parameters could be choosen 
         
 ### Test
 
-For performance evaluation, the only hyper-parameter --evaluate should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
+For performance evaluation, the only hyper-parameter `--evaluate` should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
 
 ```Python
         python main.py --evaluate -s $SOURCE_DATASET -t $TARGET_DATASET -j 2 --height 256 --width 128 --batch-size 64 -a $MODEL_NAME --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
 ```
         
-The pretrained model weights could be downloaded from [here](https://pan.baidu.com/s/1WnrAxFFkX0ksquM7SJwSIA) (code:u9ir). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performance which is shown in the following.  
+The pretrained model weights could be downloaded from [here](https://pan.baidu.com/s/1WnrAxFFkX0ksquM7SJwSIA) (code:u9ir). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performances which are shown in the following.  
 
 ### Performance
 #### PRCC
