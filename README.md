@@ -27,7 +27,7 @@ We validate the performance of our model on 3 clothing-confused datasets (PRCC, 
 
 - The contour extractor [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as black (represented by value 0). The predicted results would be put in the directory `$DATA_ROOT/contour/` and the directory would be arranged the same as the original dataset.
 
-3. The clothing-change datasets could be downloaded from [here](https://pan.baidu.com/s/1oUO0GM2nSPblJ69Xh2v-dg)(code:ix1g). The dataset directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration. Taking the `PRCC` dataset as an example:
+3. The clothing-change datasets could be downloaded from [here](https://pan.baidu.com/s/1oUO0GM2nSPblJ69Xh2v-dg) (code:ix1g). The dataset directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration. Taking the `PRCC` dataset as an example:
 
 ```Shell
         unzip prcc.zip
@@ -52,7 +52,7 @@ For performance evaluation, the only hyper-parameter --evaluate should be added 
         python main.py --evaluate -s $SOURCE_DATASET -t $TARGET_DATASET -j 2 --height 256 --width 128 --batch-size 64 -a $MODEL_NAME --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
 ```
         
-The pretrained model weights could be downloaded from [here](https://pan.baidu.com/s/1WnrAxFFkX0ksquM7SJwSIA)(code:u9ir). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performance which is shown in the following.  
+The pretrained model weights could be downloaded from [here](https://pan.baidu.com/s/1WnrAxFFkX0ksquM7SJwSIA) (code:u9ir). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performance which is shown in the following.  
 
 ### Performance
 #### PRCC
