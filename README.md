@@ -12,7 +12,7 @@ This is the implementation of a novel person re-id model combining RGB and conto
 
 ## Data Preparation
 
-We validate the performance of our model on 3 clothing-confused datasets (PRCC, BIWI, VC-Clothes). Among clothing-confused datasets, `PRCC`, `VC-Clothes` and `BIWI` target at long-term person re-id in which the same pedestrian might change clothes.
+We validate the performance of our model on 3 clothing-confused datasets (`PRCC`, `BIWI`, `VC-Clothes`). Among clothing-confused datasets, `PRCC`, `VC-Clothes` and `BIWI` target at long-term person re-id in which the same pedestrian might change clothes.
 
 1. For all datasets, we recommend to generate data list files train.txt, query.txt and gallery.txt for train, query and gallery sets in the format as follows:
 
