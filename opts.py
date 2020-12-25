@@ -194,7 +194,7 @@ def init_parser():
     # ************************************************************
     parser.add_argument('--print-freq', type=int, default=20,
                         help='print frequency')
-    parser.add_argument('--seed', type=int, default=1,
+    parser.add_argument('--seed', type=int, default=2,
                         help='manual seed')
     parser.add_argument('--resume', type=str, default='', metavar='PATH',
                         help='resume from a checkpoint')

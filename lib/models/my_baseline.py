@@ -357,16 +357,7 @@ class MyModel(nn.Module):
         v_fuse_new = self.bnneck_fuse(v_fuse)
 
         if not self.training:
-            test_feat0 = torch.cat([F.normalize(v1_new, p=2, dim=1),
-                                    F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
-            test_feat1 = F.normalize(v2_new, p=2, dim=1)
-            test_feat2 = F.normalize(v_fuse_new, p=2, dim=1)
-            test_feat3 = torch.cat([test_feat0, test_feat1], dim=1)
-            test_feat4 = torch.cat([test_feat0, test_feat2], dim=1)
-            test_feat5 = torch.cat([test_feat1, test_feat2], dim=1)
-            test_feat6 = torch.cat([test_feat0, test_feat1, test_feat2], dim=1)
-
-            return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4, test_feat5, test_feat6]
+            return [F.normalize(v_fuse_new, p=2, dim=1)]
 
         y1 = self.classifier(v1_new)
         y1_parts = []
