@@ -58,8 +58,8 @@ The pretrained model weights could be downloaded from [here]()(password: ). You 
 #### PRCC
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
-| Baseline  | 35.3% | 57.9%|
-| Our Model  | 45.3% | 64.9%|
+| Baseline  | 35.8% | 58.9%|
+| Our Model  | 46.1% | 65.9%|
 
 #### BIWI Still
 |Model| Rank-1 | Rank-5 |
