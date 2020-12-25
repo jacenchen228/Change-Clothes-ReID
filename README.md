@@ -58,24 +58,28 @@ The pretrained model weights could be downloaded from [here](https://pan.baidu.c
 #### PRCC
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
+|[SPT+ASE](https://arxiv.org/abs/2002.02295)|34.4%|-|
 | Baseline  | 35.8% | 58.9%|
 | Our Model  | 46.1% | 65.9%|
 
 #### BIWI Still
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
+|[SPT+ASE](https://arxiv.org/abs/2002.02295)|21.3%|66.1%|
 | Baseline  | 17.1% | 58.0%|
 | Our Model  | 31.5% | 75.2%|
 
 #### BIWI Walking
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
+|[SPT+ASE](https://arxiv.org/abs/2002.02295)|18.7%|63.9%|
 | Baseline  | 17.3% | 55.6%|
 | Our Model  | 29.7% | 74.2%|
 
 #### VC-Clothes
 |Model| Rank-1 | mAP |
 |  :----:  |  :----:  | :----:  |
+|[Part-aligned](https://arxiv.org/abs/1804.07094)|69.4%|67.3%|
 | Baseline  | 70.6% | 69.9%|
 | Our Model  | 77.6% | 75.8%|
  
