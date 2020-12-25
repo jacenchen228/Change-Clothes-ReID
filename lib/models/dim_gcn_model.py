@@ -405,7 +405,7 @@ class MyModel(nn.Module):
 
         if not self.training:
 
-            return F.normalize(v_fuse_new, p=2, dim=1)
+            return [F.normalize(v_fuse_new, p=2, dim=1)]
 
         y1 = self.classifier(v1_new)
         y1_parts = []
