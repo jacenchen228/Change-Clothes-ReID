@@ -12,7 +12,7 @@ This is the implementation of a novel person re-id model combining RGB and conto
 
 ## Data Preparation
 
-We validate the performance of our model on 3 clothing-confused datasets (PRCC, BIWI, VC-Clothes). Among clothing-confused datasets, PRCC, VC-Clothes and BIWI target at long-term person re-id in which the same pedestrian might change clothes.
+We validate the performance of our model on 3 clothing-confused datasets (`PRCC`, `BIWI`, `VC-Clothes`). Among clothing-confused datasets, `PRCC`, `VC-Clothes` and `BIWI` target at long-term person re-id in which the same pedestrian might change clothes.
 
 1. For all datasets, we recommend to generate data list files train.txt, query.txt and gallery.txt for train, query and gallery sets in the format as follows:
 
@@ -27,18 +27,18 @@ We validate the performance of our model on 3 clothing-confused datasets (PRCC, 
 
 - The contour extractor [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as black (represented by value 0). The predicted results would be put in the directory `$DATA_ROOT/contour/` and the directory would be arranged the same as the original dataset.
 
-3. The clothing-change datasets could be downloaded from ... The dataset directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration. Taking the `PRCC` dataset as an example:
+3. The clothing-change datasets could be downloaded from [here](https://pan.baidu.com/s/1oUO0GM2nSPblJ69Xh2v-dg) (code:ix1g). The dataset directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration. Taking the `PRCC` dataset as an example:
 
 ```Shell
         unzip prcc.zip
-        mv prcc/* $DATA_ROOT
+        mv prcc/ $DATA_ROOT/
 ```
 
 ## Train and Test
 
 ### Train
 
-For training, different datasets and training hyper-parameters could be choosen in the command line. For example, the command line for training  the PRCC dataset could be set as the following example:
+For training, different datasets and training hyper-parameters could be choosen in the command line. For example, the command line for training  the `PRCC` dataset could be set as the following example:
 
 ```Python
         python main.py -s prcc -t prcc -j 2 --height 256 --width 128 --max-epoch 80 --batch-size 64 -a baseline --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --transforms random_flip random_crop --dist-metric cosine --lr $LR --optim $OPTIMIZER
@@ -52,14 +52,14 @@ For performance evaluation, the only hyper-parameter --evaluate should be added 
         python main.py --evaluate -s $SOURCE_DATASET -t $TARGET_DATASET -j 2 --height 256 --width 128 --batch-size 64 -a $MODEL_NAME --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
 ```
         
-The pretrained model weights could be downloaded from [here]()(password: ). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performance which is shown in the following.  
+The pretrained model weights could be downloaded from [here](https://pan.baidu.com/s/1WnrAxFFkX0ksquM7SJwSIA) (code:u9ir). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performance which is shown in the following.  
 
 ### Performance
 #### PRCC
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
-| Baseline  | 35.3% | 57.9%|
-| Our Model  | 45.3% | 64.9%|
+| Baseline  | 35.8% | 58.9%|
+| Our Model  | 46.1% | 65.9%|
 
 #### BIWI Still
 |Model| Rank-1 | Rank-5 |
