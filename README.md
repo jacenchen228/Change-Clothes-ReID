@@ -16,9 +16,9 @@ We validate the performance of our model on 3 clothing-confused datasets (`PRCC`
 
 1. For all datasets, we recommend to generate data list files train.txt, query.txt and gallery.txt for train, query and gallery sets in the format as follows:
 
-        image_path1 person_id1 camera_id1
-        image_path2 person_id2 camera_id2
-        image_path3 person_id3 camera_id3
+        image_path1 person_id1
+        image_path2 person_id2
+        image_path3 person_id3
         ......
 
  For each line, different data items would be split by one space. All list files would be saved in the directory `$DATA_ROOT/list/`.
