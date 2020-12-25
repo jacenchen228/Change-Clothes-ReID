@@ -27,40 +27,50 @@ We validate the performance of our model on 3 clothing-confused datasets (PRCC, 
 
 - The contour extractor [RCF](https://github.com/yun-liu/rcf) is used to generate human contours. Specifically, we use the outputs where contours are marked as black (represented by value 0). The predicted results would be put in the directory `contour/` and the directory would be arranged the same as the original dataset.
 
-The clothing-change datasets could be downloaded from ... The data directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration.
+The clothing-change datasets could be downloaded from ... The dataset directory should be decompressed to `$DATA_ROOT` and then you could specify it in the running commond as the following illustration. Taking the `PRCC` dataset as an example:
+```Shell
+
+
+```
 
 ## Train and Test
 
 ### Train
 
 For training, different datasets and training hyper-parameters could be choosen in the command line. For example, the command line for training  the PRCC dataset could be set as the following example:
-
-    python main.py -s prcc -t prcc --height 256 --width 128 --max-epoch 80 --batch-size 64 -a baseline --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --transforms random_flip random_crop --dist-metric cosine 
-
+```Python
+    python main.py -s prcc -t prcc -j 2 --height 256 --width 128 --max-epoch 80 --batch-size 64 -a baseline --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --transforms random_flip random_crop --dist-metric cosine --lr $LR --optim $OPTIMIZER
+```
 ### Test
 
 For performance evaluation, the only hyper-parameter --evaluate should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
-
-    python main.py --evaluate -s prcc -t prcc --height 256 --width 128 --batch-size 64 -a baseline --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
-
+```Python
+    python main.py --evaluate -s prcc -t prcc -j 2 --height 256 --width 128 --batch-size 64 -a $MODEL_NAME --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
+```
 The pretrained model weights could be downloaded from [here]()(password: ). You could put the weight file in `$WEIGHT_PATH` and get start to evaluate model performances. 
 
 ### Performance
 #### PRCC
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
-| Baseline  |  | |
-| Our Model  |  | |
+| Baseline  | 35.3% | 57.9%|
+| Our Model  | 45.3% | 64.9%|
 
-#### BIWI
+#### BIWI Still
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
-| Baseline  |  | |
-| Our Model  |  | |
+| Baseline  | 17.1% | 58.0%|
+| Our Model  | 31.5% | 75.2%|
+
+#### BIWI Walking
+|Model| Rank-1 | Rank-5 |
+|  :----:  |  :----:  | :----:  |
+| Baseline  | 17.3% | 55.6%|
+| Our Model  | 29.7% | 74.2%|
 
 #### VC-Clothes
 |Model| Rank-1 | mAP |
 |  :----:  |  :----:  | :----:  |
-| Baseline  |  | |
-| Our Model  |  | |
+| Baseline  | 70.6% | 69.9%|
+| Our Model  | 77.6% | 75.8%|
  
