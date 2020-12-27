@@ -13,7 +13,13 @@ from lib.metrics import compute_distance_matrix, evaluate_rank
 from lib.losses import normalize
 
 ID2FEAT_NAME = {
-    0: 'fuse'
+    0: 'feat 0',
+    1: 'feat 1',
+    2: 'feat 2',
+    3: 'feat 3',
+    4: 'feat 4',
+    5: 'feat 5',
+    6: 'feat 6'
 }
 
 
