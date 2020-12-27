@@ -16,9 +16,9 @@ We validate the performance of our model on 3 clothing-confused datasets (`PRCC`
 
 1. For all datasets, we recommend to generate data list files train.txt, query.txt and gallery.txt for train, query and gallery sets in the format as follows:
 
-        image_path1 person_id1 camera_id1
-        image_path2 person_id2 camera_id2
-        image_path3 person_id3 camera_id3
+        image_path1 person_id1
+        image_path2 person_id2
+        image_path3 person_id3
         ......
 
  For each line, different data items would be split by one space. All list files would be saved in the directory `$DATA_ROOT/list/`.
@@ -46,36 +46,40 @@ For training, different datasets and training hyper-parameters could be choosen 
         
 ### Test
 
-For performance evaluation, the only hyper-parameter --evaluate should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
+For performance evaluation, the only hyper-parameter `--evaluate` should be added to the command line to change the mode. One example of corresponding command lines could be shown as follows:
 
 ```Python
         python main.py --evaluate -s $SOURCE_DATASET -t $TARGET_DATASET -j 2 --height 256 --width 128 --batch-size 64 -a $MODEL_NAME --save-dir $SAVE_DIR --root $DATA_ROOT --gpu-devices $GPU_ID --dist-metric cosine --load-weights $WEIGHT_PATH
 ```
         
-The pretrained model weights could be downloaded from [here](https://pan.baidu.com/s/1WnrAxFFkX0ksquM7SJwSIA) (code:u9ir). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performance which is shown in the following.  
+The pretrained model weights could be downloaded from [here](https://pan.baidu.com/s/1WnrAxFFkX0ksquM7SJwSIA) (code:u9ir). You could specify the dataset name (check `lib/models/__init__.py`) and put the weight file in `$WEIGHT_PATH`. Then you could check the performances which are shown in the following.  
 
 ### Performance
 #### PRCC
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
+|[SPT+ASE](https://arxiv.org/abs/2002.02295)|34.4%|-|
 | Baseline  | 35.8% | 58.9%|
 | Our Model  | 46.1% | 65.9%|
 
 #### BIWI Still
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
+|[SPT+ASE](https://arxiv.org/abs/2002.02295)|21.3%|66.1%|
 | Baseline  | 17.1% | 58.0%|
 | Our Model  | 31.5% | 75.2%|
 
 #### BIWI Walking
 |Model| Rank-1 | Rank-5 |
 |  :----:  |  :----:  | :----:  |
+|[SPT+ASE](https://arxiv.org/abs/2002.02295)|18.7%|63.9%|
 | Baseline  | 17.3% | 55.6%|
 | Our Model  | 29.7% | 74.2%|
 
 #### VC-Clothes
 |Model| Rank-1 | mAP |
 |  :----:  |  :----:  | :----:  |
+|[Part-aligned](https://arxiv.org/abs/1804.07094)|69.4%|67.3%|
 | Baseline  | 70.6% | 69.9%|
 | Our Model  | 77.6% | 75.8%|
  
