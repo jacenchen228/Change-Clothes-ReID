@@ -15,7 +15,7 @@ import torchvision
 import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
 
-from lib.utils.DIM.model_ori import GlobalDiscriminator, PartDiscriminator
+from lib.utils.DIM.model import Discriminator
 from lib.utils import GraphConvolution
 from lib.utils import GeneralizedMeanPoolingP
 
@@ -204,6 +204,7 @@ class MyModel(nn.Module):
         self.layer2_contour = self._make_layer(block_contour, 128, layers_contour[1], stride=2)
         self.layer3_contour = self._make_layer(block_contour, 256, layers_contour[2], stride=2)
         self.layer4_contour = self._make_layer(block_contour, self.feature_dim_base, layers_contour[3], stride=last_stride)
+        self.conv5_contour = DimReduceLayer(self.feature_dim_base * block_contour.expansion, self.reduced_dim, nonlinear='relu')
 
         # network for contour graph modeling
         self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 3))
@@ -226,10 +227,12 @@ class MyModel(nn.Module):
         self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         # mutual information learning module
-        self.discriminator_global = GlobalDiscriminator(in_feature_dim=self.feature_dim_base*block_rgb.expansion, feature_dim=512)
-        self.part_height = 16 // self.part_num
-        self.residue = 16 % self.part_num
-        self.discriminator_part = PartDiscriminator(in_feature_dim=self.feature_dim_base*block_rgb.expansion, feature_dim=512, vec_feature_dim=self.reduced_dim, part_height=self.part_height)
+        global_discriminator_layers = [2048, 512, 128, 32]
+        self.discriminator_global = Discriminator(in_dim1=self.feature_dim_base*block_rgb.expansion, in_dim2=self.feature_dim_base*block_contour.expansion,
+                                                  layers_dim=global_discriminator_layers)
+        part_discriminator_layers = [512, 128, 32]
+        self.discriminator_part = nn.ModuleList([Discriminator(in_dim1=self.reduced_dim, in_dim2=self.reduced_dim, layers_dim=part_discriminator_layers)
+                                                 for _ in range(self.part_num)])
 
         # for name, module in self.named_modules():
         #     print(name, module)
@@ -418,13 +421,16 @@ class MyModel(nn.Module):
         v1 = v1.view(v1.size(0), -1)
         v1_parts = self.parts_avgpool_rgb(f1)
         v1_parts = self.conv5(v1_parts)
+        v1_parts = v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1)
 
         # generate contour features (global + part)
         # via Contour Hierarchical Graph modeling
         v2_ = self.parts_avgpool_contour(f2)
         v2, v2_parts = self.hierarchical_graph_modeling(v2_)
         # from NxPxC -> NxCxP
-        v2_parts = v2_parts.view(v2.size(0), v2.size(2), v2.size(1))
+        v2_parts = v2_parts.view(v2.size(0), v2.size(2), v2.size(1), 1)
+        v2_parts = self.conv5_contour(v2_parts)
+        v2_parts = v2_parts.view(v2_parts.size(0), v2_parts.size(1), -1)
 
         # bnneck operation
         v1_new = self.bnneck_rgb(v1)
@@ -437,16 +443,11 @@ class MyModel(nn.Module):
             v2_parts_new[:, :, idx] = self.bnneck_contour_part[idx](v2_parts[:, :, idx])
 
         if not self.training:
-            test_feat0 = torch.cat([F.normalize(v1_new, p=2, dim=1),
-                                    F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
-            test_feat1 = F.normalize(v2_new, p=2, dim=1)
-            test_feat2 = F.normalize(v_fuse_new, p=2, dim=1)
-            test_feat3 = F.normalize(torch.cat([test_feat0, test_feat1], dim=1), p=2, dim=1)
-            test_feat4 = F.normalize(torch.cat([test_feat0, test_feat2], dim=1), p=2, dim=1)
-            test_feat5 = F.normalize(torch.cat([test_feat1, test_feat2], dim=1), p=2, dim=1)
-            test_feat6 = F.normalize(torch.cat([test_feat0, test_feat1, test_feat2], dim=1), p=2, dim=1)
+            global_feat = F.normalize(v1_new, p=2, dim=1)
+            local_feat = F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)
+            concate_feat = F.normalize(torch.cat([global_feat, local_feat], dim=1), p=2, dim=1)
 
-            return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4, test_feat5, test_feat6]
+            return [global_feat, local_feat, concate_feat]
 
         # predict probability
         y1 = self.classifier(v1_new)
@@ -465,9 +466,9 @@ class MyModel(nn.Module):
             y2_parts.append(y2_part_i)
 
         # calcuate mutual information
+        ej, em, ej_part, em_part = self.deep_info_max(v1, v2, v1_parts, v2_parts)
 
-
-        return [y1, y1_parts, y2], [v1, v1_parts_new.view(v1_parts.size(0), -1), v2], \
+        return [y1, y1_parts, y2, y2_parts], [v1, v1_parts.view(v1_parts.size(0), -1), v2, v2_parts.view(v2_parts.size(0), -1)], \
                ej, em, ej_part, em_part
 
 

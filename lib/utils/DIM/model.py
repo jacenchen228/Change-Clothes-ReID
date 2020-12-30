@@ -2,40 +2,39 @@ import torch
 import torch.nn as nn
 
 
-class GlobalDiscriminator(nn.Module):
-    def __init__(self):
-        super(GlobalDiscriminator, self).__init__()
-        # self.height = height
-        # self.width = width
-        # self.in_feature_dim = in_feature_dim
-        # self.feature_dim = feature_dim
-
-        self.relu = nn.ReLU(inplace=True)
-        self.linear1 = nn.Linear(1024, 512)
-        self.linear2 = nn.Linear(512, 256)
-        self.linear3 = nn.Linear(256, 1)
-
-    def forward(self, h_y1, h_y2):
-        h = torch.cat((h_y1, h_y2), dim=1)
-        h = self.relu(self.linear1(h))
-        h = self.relu(self.linear2(h))
-
-        return self.linear3(h)
+def build_linear_block(in_dim, out_dim):
+    return nn.Sequential([
+      nn.Linear(in_dim, out_dim),
+      nn.BatchNorm1d(out_dim),
+      nn.ReLU(inplace=True)
+    ])
 
 
-class PartDiscriminator(nn.Module):
-    def __init__(self, feature_dim):
-        super(PartDiscriminator, self).__init__()
+class Discriminator(nn.Module):
+    def __init__(self, in_dim1, in_dim2, layers_dim):
+        super(Discriminator, self).__init__()
 
-        self.relu = nn.ReLU(inplace=True)
-        self.linear1 = nn.Linear(1024, 512)
-        self.linear2 = nn.Linear(512, 256)
-        self.linear3 = nn.Linear(256, 1)
+        self.linear1 = build_linear_block(in_dim1, layers_dim[0]//2)
+        self.linear2 = build_linear_block(in_dim2, layers_dim[0]//2)
 
-    def forward(self, h_y1, h_y2):
-        h = torch.cat((h_y1, h_y2), dim=1)
-        h = self.relu(self.linear1(h))
-        h = self.relu(self.linear2(h))
+        linear_layers = []
+        for idx in range(len(layers_dim)):
+            if idx == 0:
+                linear_layers.append(build_linear_block(layers_dim[0], layers_dim[0]))
+            else:
+                linear_layers.append(build_linear_block(layers_dim[idx-1], layers_dim[idx]))
+        self.linears = nn.Sequential(linear_layers)
 
-        return self.linear3(h)
+        self.linear_final = nn.Linear(layers_dim[-1], 1)
+
+    def forward(self, x1, x2):
+        y1 = self.linear1(x1)
+        y2 = self.linear2(x2)
+
+        y = torch.cat([y1, y2], dim=1)
+        y = self.linears(y)
+        y = self.linear_final(y)
+
+        return y
+
 
