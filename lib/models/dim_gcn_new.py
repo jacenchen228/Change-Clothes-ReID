@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dim_gcn_model']
+__all__ = ['dim_gcn_new']
 
 import random
 
@@ -188,7 +188,7 @@ class MyModel(nn.Module):
         self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
         # self.global_avgpool = GeneralizedMeanPoolingP()
         self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num, 1))
-        self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
+        self.conv5 = DimReduceLayer(self.feature_dim_base*block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 
         # fc layers definition
         if fc_dims is None:
@@ -204,25 +204,25 @@ class MyModel(nn.Module):
         self.layer2_contour = self._make_layer(block_contour, 128, layers_contour[1], stride=2)
         self.layer3_contour = self._make_layer(block_contour, 256, layers_contour[2], stride=2)
         self.layer4_contour = self._make_layer(block_contour, self.feature_dim_base, layers_contour[3], stride=last_stride)
-        self.conv5_contour = DimReduceLayer(self.feature_dim_base * block_contour.expansion, self.reduced_dim, nonlinear='relu')
+        self.conv5_contour = DimReduceLayer(self.feature_dim_base*block_contour.expansion, self.reduced_dim, nonlinear='relu')
 
         # network for contour graph modeling
         self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 3))
         # self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 1))
         self.feature_dim_gnn = self.feature_dim_base * block_contour.expansion
-        self.gnns = nn.ModuleList([GraphConvolution(self.feature_dim, self.feature_dim_gnn, bias=True)
+        self.gnns = nn.ModuleList([GraphConvolution(self.feature_dim_gnn, self.feature_dim_gnn, bias=True)
                                    for _ in range(self.part_num + 1)])
         self.bns_gnn = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num + 1)])
 
         # bnneck layers
-        self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
+        self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
         self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
-        self.bnneck_contour = nn.BatchNorm1d(self.feature_dim)
+        self.bnneck_contour = nn.BatchNorm1d(self.feature_dim_base*block_contour.expansion)
         self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
 
         # classifiers
-        self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
-        self.classifier_contour = nn.Linear(self.feature_dim, num_classes, bias=False)
+        self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
+        self.classifier_contour = nn.Linear(self.feature_dim_base*block_contour.expansion, num_classes, bias=False)
         self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
         self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
@@ -231,7 +231,7 @@ class MyModel(nn.Module):
         self.discriminator_global = Discriminator(in_dim1=self.feature_dim_base*block_rgb.expansion, in_dim2=self.feature_dim_base*block_contour.expansion,
                                                   layers_dim=global_discriminator_layers)
         part_discriminator_layers = [512, 128, 32]
-        self.discriminator_part = nn.ModuleList([Discriminator(in_dim1=self.reduced_dim, in_dim2=self.reduced_dim, layers_dim=part_discriminator_layers)
+        self.discriminators_part = nn.ModuleList([Discriminator(in_dim1=self.reduced_dim, in_dim2=self.reduced_dim, layers_dim=part_discriminator_layers)
                                                  for _ in range(self.part_num)])
 
         # for name, module in self.named_modules():
@@ -402,8 +402,8 @@ class MyModel(nn.Module):
             random.shuffle(random_idxs_i)
             v2_part_i_shuffle = v2_part_i[random_idxs_i]
 
-            ej_part_i = self.discriminator_part(v1_part_i, v2_part_i)
-            em_part_i = self.discriminator_part(v1_part_i, v2_part_i_shuffle)
+            ej_part_i = self.discriminators_part[idx](v1_part_i, v2_part_i)
+            em_part_i = self.discriminators_part[idx](v1_part_i, v2_part_i_shuffle)
 
             ej_part.append(ej_part_i)
             em_part.append(em_part_i)
@@ -427,8 +427,8 @@ class MyModel(nn.Module):
         # via Contour Hierarchical Graph modeling
         v2_ = self.parts_avgpool_contour(f2)
         v2, v2_parts = self.hierarchical_graph_modeling(v2_)
-        # from NxPxC -> NxCxP
-        v2_parts = v2_parts.view(v2.size(0), v2.size(2), v2.size(1), 1)
+        # from NxPxC -> NxCxPx1
+        v2_parts = v2_parts.transpose(1, 2).unsqueeze(3)
         v2_parts = self.conv5_contour(v2_parts)
         v2_parts = v2_parts.view(v2_parts.size(0), v2_parts.size(1), -1)
 
@@ -442,12 +442,17 @@ class MyModel(nn.Module):
         for idx in range(self.part_num):
             v2_parts_new[:, :, idx] = self.bnneck_contour_part[idx](v2_parts[:, :, idx])
 
+        # when evaluation
         if not self.training:
             global_feat = F.normalize(v1_new, p=2, dim=1)
-            local_feat = F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)
-            concate_feat = F.normalize(torch.cat([global_feat, local_feat], dim=1), p=2, dim=1)
+            part_feat = F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)
+            concate_feat = F.normalize(torch.cat([global_feat, part_feat], dim=1), p=2, dim=1)
+            
+            global_contour_feat = F.normalize(v2_new, p=2, dim=1)
+            part_contour_feat = F.normalize(v2_parts_new.view(v2_parts_new.size(0), -1), p=2, dim=1)
+            concate_contour_feat = F.normalize(torch.cat([global_contour_feat, part_contour_feat], dim=1), p=2, dim=1)
 
-            return [global_feat, local_feat, concate_feat]
+            return [global_feat, part_feat, concate_feat, concate_contour_feat]
 
         # predict probability
         y1 = self.classifier(v1_new)
@@ -522,24 +527,25 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
         layer_name = ''
         for idx, part in enumerate(name_list):
             if idx == 0:
-                layer_name += (part + '_aux')
+                layer_name += (part + '_contour')
             else:
                 layer_name += ('.' + part)
 
         if layer_name in model_dict and model_dict[layer_name].size() == v.size():
+            print('Layer {} initialization done!'.format(layer_name))
             pretrain_dict2_match[layer_name] = v
 
-        # Initialize img part layer4
-        if 'layer4' in name_list:
-            print('Layer4 Part Initialization Done!')
-            layer_name1 = ''
-            for idx, part in enumerate(name_list):
-                if idx == 0:
-                    layer_name1 += (part + '_part')
-                else:
-                    layer_name1 += ('.' + part)
-            if layer_name1 in model_dict and model_dict[layer_name1].size() == v.size():
-                pretrain_dict2_match[layer_name1] = v
+        # # Initialize img part layer4
+        # if 'layer4' in name_list:
+        #     print('Layer4 Part Initialization Done!')
+        #     layer_name1 = ''
+        #     for idx, part in enumerate(name_list):
+        #         if idx == 0:
+        #             layer_name1 += (part + '_part')
+        #         else:
+        #             layer_name1 += ('.' + part)
+        #     if layer_name1 in model_dict and model_dict[layer_name1].size() == v.size():
+        #         pretrain_dict2_match[layer_name1] = v
 
     model_dict.update(pretrain_dict2_match)
 
@@ -547,23 +553,43 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url1))
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
-"""ResNet"""
-def dim_gcn_model(num_classes, loss='softmax', pretrained=True, **kwargs):
+# def dim_gcn_new(num_classes, loss='softmax', pretrained=True, **kwargs):
+#     model = MyModel(
+#         num_classes=num_classes,
+#         loss=loss,
+#         block_rgb=Bottleneck,
+#         layers_rgb=[3, 4, 6, 3],
+#         block_contour=Bottleneck,
+#         layers_contour=[3, 4, 6, 3],
+#         last_stride=1,
+#         fc_dims=None,
+#         dropout_p=None,
+#         **kwargs
+#     )
+#
+#     if pretrained:
+#         init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet50'])
+#
+#     return model
+
+
+def dim_gcn_new(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
         block_rgb=Bottleneck,
         layers_rgb=[3, 4, 6, 3],
-        block_contour=Bottleneck,
+        block_contour=BasicBlock,
         layers_contour=[3, 4, 6, 3],
         last_stride=1,
         fc_dims=None,
         dropout_p=None,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet50'])
-    return model
 
+    if pretrained:
+        init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet34'])
+
+    return model
 
 

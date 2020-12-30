@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['resnet50']
+__all__ = ['resnet50_part']
 
 import random
 
@@ -143,7 +143,7 @@ class MyModel(nn.Module):
 
     def __init__(self, num_classes, loss, block_rgb, layers_rgb, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num_rgb=3, part_num_contour=3,
+                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num=3,
                  **kwargs):
         super(MyModel, self).__init__()
         self.cnt = 0
@@ -156,9 +156,8 @@ class MyModel(nn.Module):
         self.feature_dim = self.feature_dim_base * block_rgb.expansion
         self.inplanes = 64
         self.dilation = 1
-        self.part_num_rgb = part_num_rgb
-        self.part_num_contour = part_num_contour
-        self.reduced_dim = 512
+        self.part_num = part_num
+        self.reduced_dim = 256
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
@@ -181,17 +180,16 @@ class MyModel(nn.Module):
                                        dilate=replace_stride_with_dilation[2])
         self.inplanes = 256 * block_rgb.expansion
         self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        # self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
-        # reduce_dim = 768
-        # self.embedding_layer = nn.Linear(4096, reduce_dim, bias=False)
+        self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num, 1))
+        self.conv5 = DimReduceLayer(self.feature_dim_base*block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 
         # bnneck layers
-        # self.bnneck_rgb = nn.BatchNorm1d(reduce_dim)
-        self.bnneck_rgb = nn.BatchNorm1d(512*block_rgb.expansion)
+        self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
+        self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
 
         # classifiers
-        # self.classifier = nn.Linear(reduce_dim, num_classes, bias=False)
-        self.classifier = nn.Linear(512*block_rgb.expansion, num_classes, bias=False)
+        self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
+        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         self._init_params()
 
@@ -294,39 +292,36 @@ class MyModel(nn.Module):
         if return_featuremaps:
             return f1
 
-        v1_1 = self.global_avgpool(f1)
-        v1_1 = v1_1.view(v1_1.size(0), -1)
-        # v1_2 = self.global_maxpool(f1)
-        # v1_2 = v1_2.view(v1_2.size(0), -1)
-        # v1 = self.embedding_layer(torch.cat([v1_1, v1_2], 1))
+        v1 = self.global_avgpool(f1)
+        v1 = v1.view(v1.size(0), -1)
 
-        # v1_parts = self.parts_avgpool_rgb(f1)
-        # v1_parts = self.conv5(v1_parts)
+        v1_parts = self.parts_avgpool_rgb(f1)
+        v1_parts = self.conv5(v1_parts)
 
-        # v1_new = self.bnneck_rgb(v1)
-        v1_new = self.bnneck_rgb(v1_1)
-        # v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
+        v1_new = self.bnneck_rgb(v1)
+        v1_parts_new = torch.zeros_like(v1_parts)
+        for idx in range(self.part_num):
+            v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx])
 
         if not self.training:
             test_feat0 = F.normalize(v1_new, p=2, dim=1)
-            # test_feat1 = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
-            # test_feat2 = torch.cat([F.normalize(v1, p=2, dim=1),
-            #                         F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)], dim=1)
-            # test_feat3 = torch.cat([F.normalize(v1_new, p=2, dim=1),
-            #                         F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
-            # return [test_feat0, test_feat1, test_feat2]
-            return [test_feat0]
+            test_feat1 = F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)
+            test_feat2 = F.normalize(torch.cat([F.normalize(v1_new, p=2, dim=1),
+                                    F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)], dim=1), p=2, dim=1)
+            test_feat3 = F.normalize(torch.cat([F.normalize(v1, p=2, dim=1),
+                                    F.normalize(v1_parts.view(v1_parts.size(0), -1), p=2, dim=1)], dim=1), p=2, dim=1)
+
+            return [test_feat0, test_feat1, test_feat2, test_feat3]
 
         y1 = self.classifier(v1_new)
-        # y1_parts = []
-        # for idx in range(self.part_num_rgb):
-        #     v1_part_i = v1_parts_new[:, :, idx]
-        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
-        #     y1_parts.append(y1_part_i)
+        y1_parts = []
+        for idx in range(self.part_num):
+            v1_part_i = v1_parts_new[:, :, idx]
+            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+            y1_part_i = self.classifiers_part[idx](v1_part_i)
+            y1_parts.append(y1_part_i)
 
-        # return [y1, y1_parts], [v1_new, v1_parts_new.view(v1_parts_new.size(0), -1)]
-        return [y1], [v1_1]
+        return [y1, y1_parts], [v1, v1_parts.view(v1_parts_new.size(0), -1)]
 
 
 def init_pretrained_weights(model, model_url):
@@ -340,10 +335,8 @@ def init_pretrained_weights(model, model_url):
     model_dict.update(pretrain_dict_matched)
     model.load_state_dict(model_dict)
 
-"""ResNet"""
 
-
-def resnet50(num_classes, loss='softmax', pretrained=True, **kwargs):
+def resnet50_part(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
