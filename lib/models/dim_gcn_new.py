@@ -147,7 +147,7 @@ class MyModel(nn.Module):
 
     def __init__(self, num_classes, loss, block_rgb, layers_rgb, block_contour, layers_contour, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num_rgb=3, part_num_contour=3, **kwargs):
+                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num=3, **kwargs):
         super(MyModel, self).__init__()
         self.cnt = 0
 
@@ -159,8 +159,7 @@ class MyModel(nn.Module):
         self.feature_dim = self.feature_dim_base * block_rgb.expansion
         self.inplanes = 64
         self.dilation = 1
-        self.part_num_rgb = part_num_rgb
-        self.part_num_contour = part_num_contour
+        self.part_num = part_num
         self.reduced_dim = 256
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -188,7 +187,7 @@ class MyModel(nn.Module):
         self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
         # self.global_avgpool = GeneralizedMeanPoolingP()
-        self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num_rgb, 1))
+        self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num, 1))
         self.conv5 = DimReduceLayer(self.feature_dim_base * block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 
         # fc layers definition
@@ -207,27 +206,29 @@ class MyModel(nn.Module):
         self.layer4_contour = self._make_layer(block_contour, self.feature_dim_base, layers_contour[3], stride=last_stride)
 
         # network for contour graph modeling
-        self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num_contour, 3))
-        # self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num_contour, 1))
+        self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 3))
+        # self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 1))
         self.feature_dim_gnn = self.feature_dim_base * block_contour.expansion
         self.gnns = nn.ModuleList([GraphConvolution(self.feature_dim, self.feature_dim_gnn, bias=True)
-                                   for _ in range(self.part_num_contour + 1)])
-        self.bns_gnn = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num_contour + 1)])
+                                   for _ in range(self.part_num + 1)])
+        self.bns_gnn = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num + 1)])
 
         # bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
-        self.bnneck_rgb_part = nn.BatchNorm1d(self.reduced_dim)
+        self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
         self.bnneck_contour = nn.BatchNorm1d(self.feature_dim)
+        self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
         self.classifier_contour = nn.Linear(self.feature_dim, num_classes, bias=False)
-        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num_rgb)])
+        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         # mutual information learning module
         self.discriminator_global = GlobalDiscriminator(in_feature_dim=self.feature_dim_base*block_rgb.expansion, feature_dim=512)
-        self.part_height = 16 // self.part_num_rgb
-        self.residue = 16 % self.part_num_rgb
+        self.part_height = 16 // self.part_num
+        self.residue = 16 % self.part_num
         self.discriminator_part = PartDiscriminator(in_feature_dim=self.feature_dim_base*block_rgb.expansion, feature_dim=512, vec_feature_dim=self.reduced_dim, part_height=self.part_height)
 
         # for name, module in self.named_modules():
@@ -355,7 +356,7 @@ class MyModel(nn.Module):
     def hierarchical_graph_modeling(self, v):
         # fine-grained scale graph learning
         v = v.permute(0, 2, 3, 1)
-        v_local = torch.zeros(v.shape[0], v.shape[1], v.shape[3])
+        v_local = torch.zeros(v.shape[0], v.shape[1], v.shape[3]).cuda()
         for idx in range(v.shape[1]):
             part_i = v[:, idx, ...]
             adj_mat_i = self.cos_sim(part_i)
@@ -376,13 +377,40 @@ class MyModel(nn.Module):
         v_global = self.relu(v_global)
         v_global = torch.max(v_global, dim=1)[0]
 
-        return v_local, v_global
+        return v_global, v_local
+
+    def deep_info_max(self, v1, v2, v1_parts, v2_parts):
+        # calculate global mutual information
+        random_idxs = list(range(v2.size(0)))
+        random.shuffle(random_idxs)
+        v2_shuffle = v2[random_idxs]
+
+        ej = self.discriminator_global(v1, v2)
+        em = self.discriminator_global(v1, v2_shuffle)
+
+        # calculate local mutual information
+        ej_part = []
+        em_part = []
+        for idx in range(self.part_num):
+            v1_part_i = v1_parts[:, :, idx]
+            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+            v2_part_i = v2_parts[:, :, idx]
+            random_idxs_i = list(range(v2_part_i.size(0)))
+            random.shuffle(random_idxs_i)
+            v2_part_i_shuffle = v2_part_i[random_idxs_i]
+
+            ej_part_i = self.discriminator_part(v1_part_i, v2_part_i)
+            em_part_i = self.discriminator_part(v1_part_i, v2_part_i_shuffle)
+
+            ej_part.append(ej_part_i)
+            em_part.append(em_part_i)
+
+        return ej, em, ej_part, em_part
 
     def forward(self, x1, x2, return_featuremaps=False):
         f1, f2 = self.featuremaps(x1, x2)
 
         if return_featuremaps:
-            # return f_tmp
             return f1
 
         # generate rgb features (global + part)
@@ -395,11 +423,18 @@ class MyModel(nn.Module):
         # via Contour Hierarchical Graph modeling
         v2_ = self.parts_avgpool_contour(f2)
         v2, v2_parts = self.hierarchical_graph_modeling(v2_)
+        # from NxPxC -> NxCxP
+        v2_parts = v2_parts.view(v2.size(0), v2.size(2), v2.size(1))
 
         # bnneck operation
         v1_new = self.bnneck_rgb(v1)
-        v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
+        v1_parts_new = torch.zeros_like(v1_parts)
+        for idx in range(self.part_num):
+            v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx])
         v2_new = self.bnneck_contour(v2)
+        v2_parts_new = torch.zeros_like(v2_parts)
+        for idx in range(self.part_num):
+            v2_parts_new[:, :, idx] = self.bnneck_contour_part[idx](v2_parts[:, :, idx])
 
         if not self.training:
             test_feat0 = torch.cat([F.normalize(v1_new, p=2, dim=1),
@@ -413,47 +448,26 @@ class MyModel(nn.Module):
 
             return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4, test_feat5, test_feat6]
 
+        # predict probability
         y1 = self.classifier(v1_new)
         y1_parts = []
-        for idx in range(self.part_num_rgb):
+        for idx in range(self.part_num):
             v1_part_i = v1_parts_new[:, :, idx]
             v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
             y1_part_i = self.classifiers_part[idx](v1_part_i)
             y1_parts.append(y1_part_i)
         y2 = self.classifier_contour(v2_new)
-        y_fuse = self.classifier_fuse(v_fuse_new)
+        y2_parts = []
+        for idx in range(self.part_num):
+            v2_part_i = v2_parts_new[:, :, idx]
+            v2_part_i = v2_part_i.view(v2_part_i.size(0), -1)
+            y2_part_i = self.classifiers_contour_part[idx](v2_part_i)
+            y2_parts.append(y2_part_i)
 
-        random_idxs = list(range(f2.size(0)))
-        random.shuffle(random_idxs)
-        f2_shuffle = f2[random_idxs]
+        # calcuate mutual information
 
-        ej = self.discriminator_global(v1_new, f2)
-        em = self.discriminator_global(v1_new, f2_shuffle)
 
-        ej_part = []
-        em_part = []
-        height_record = 0
-        for idx in range(self.part_num_rgb):
-            flag = self.part_num_rgb - 1 - idx
-            if flag < self.residue:
-                height_record += 1
-
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            f2_i = f2[:, :, height_record:height_record+self.part_height, :]
-            random_idxs_i = list(range(f2_i.size(0)))
-            random.shuffle(random_idxs_i)
-            f2_i_shuffle = f2_i[random_idxs_i]
-
-            ej_part_i = self.discriminator_part(v1_part_i, f2_i)
-            em_part_i = self.discriminator_part(v1_part_i, f2_i_shuffle)
-
-            ej_part.append(ej_part_i)
-            em_part.append(em_part_i)
-
-            height_record += self.part_height
-
-        return [y1, y1_parts, y2, y_fuse], [v1, v1_parts_new.view(v1_parts.size(0), -1), v2, v_fuse], \
+        return [y1, y1_parts, y2], [v1, v1_parts_new.view(v1_parts.size(0), -1), v2], \
                ej, em, ej_part, em_part
 
 

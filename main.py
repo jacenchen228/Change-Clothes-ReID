@@ -104,7 +104,8 @@ def main():
         num_classes=dataset.num_train_pids,
         pretrained=(not args.no_pretrained),
         use_gpu=use_gpu,
-        batch_size=args.batch_size
+        batch_size=args.batch_size,
+        part_num=args.part_num
     )
     model = model.cuda()
 

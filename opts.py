@@ -158,9 +158,11 @@ def init_parser():
     parser.add_argument('--no-pretrained', action='store_true',
                         help='do not load pretrained weights')
     parser.add_argument('--part-num-rgb', type=int, default=3,
-                        help='part number of RGB feature')
+                        help='part number of RGB features')
     parser.add_argument('--part-num-contour', type=int, default=3,
-                        help='part number of contour feature')
+                        help='part number of contour features')
+    parser.add_argument('--part-num', type=int, default=3,
+                        help='part number of features')
 
     # ************************************************************
     # Test settings
