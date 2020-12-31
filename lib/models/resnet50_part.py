@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['resnet50_part']
+__all__ = ['resnet50_part', 'resnet34_part']
 
 import random
 
@@ -157,7 +157,7 @@ class MyModel(nn.Module):
         self.inplanes = 64
         self.dilation = 1
         self.part_num = part_num
-        self.reduced_dim = 256
+        self.reduced_dim = 512
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
@@ -168,6 +168,7 @@ class MyModel(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        # self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -288,6 +289,7 @@ class MyModel(nn.Module):
         # x2 here is useless, serving as placeholder
 
         f1 = self.featuremaps(x1)
+        # f1 = self.featuremaps(x2)
 
         if return_featuremaps:
             return f1
@@ -321,7 +323,7 @@ class MyModel(nn.Module):
             y1_part_i = self.classifiers_part[idx](v1_part_i)
             y1_parts.append(y1_part_i)
 
-        return [y1, y1_parts], [v1, v1_parts.view(v1_parts_new.size(0), -1)]
+        return [y1, y1_parts], [v1, v1_parts.view(v1_parts.size(0), -1)]
 
 
 def init_pretrained_weights(model, model_url):
@@ -347,9 +349,27 @@ def resnet50_part(num_classes, loss='softmax', pretrained=True, **kwargs):
         dropout_p=None,
         **kwargs
     )
+
     if pretrained:
         init_pretrained_weights(model, model_urls['resnet50'])
+
     return model
 
 
+def resnet34_part(num_classes, loss='softmax', pretrained=True, **kwargs):
+    model = MyModel(
+        num_classes=num_classes,
+        loss=loss,
+        block_rgb=BasicBlock,
+        layers_rgb=[3, 4, 6, 3],
+        last_stride=1,
+        fc_dims=None,
+        dropout_p=None,
+        **kwargs
+    )
+
+    if pretrained:
+        init_pretrained_weights(model, model_urls['resnet34'])
+
+    return model
 

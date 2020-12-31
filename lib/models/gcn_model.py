@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['gcn_model']
+__all__ = ['gcn_model', 'gcn_model_contour34']
 
 import torch
 from torch import nn
@@ -208,19 +208,19 @@ class MyModel(nn.Module):
         self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 3))
         # self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 1))
         self.feature_dim_gnn = self.feature_dim_base * block_contour.expansion
-        self.gnns = nn.ModuleList([GraphConvolution(self.feature_dim, self.feature_dim_gnn, bias=True)
+        self.gnns = nn.ModuleList([GraphConvolution(self.feature_dim_gnn, self.feature_dim_gnn, bias=True)
                                    for _ in range(self.part_num + 1)])
         self.bns_gnn = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num + 1)])
 
         # bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
         self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
-        self.bnneck_contour = nn.BatchNorm1d(self.feature_dim)
+        self.bnneck_contour = nn.BatchNorm1d(self.feature_dim_base * block_contour.expansion)
         self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
-        self.classifier_contour = nn.Linear(self.feature_dim, num_classes, bias=False)
+        self.classifier_contour = nn.Linear(self.feature_dim_base * block_contour.expansion, num_classes, bias=False)
         self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
         self.classifiers_contour_part = nn.ModuleList(
             [nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
@@ -486,33 +486,31 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
         layer_name = ''
         for idx, part in enumerate(name_list):
             if idx == 0:
-                layer_name += (part + '_aux')
+                layer_name += (part + '_contour')
             else:
                 layer_name += ('.' + part)
 
         if layer_name in model_dict and model_dict[layer_name].size() == v.size():
+            print('Layer {} initialization done!'.format(layer_name))
             pretrain_dict2_match[layer_name] = v
 
-        # Initialize img part layer4
-        if 'layer4' in name_list:
-            print('Layer4 Part Initialization Done!')
-            layer_name1 = ''
-            for idx, part in enumerate(name_list):
-                if idx == 0:
-                    layer_name1 += (part + '_part')
-                else:
-                    layer_name1 += ('.' + part)
-            if layer_name1 in model_dict and model_dict[layer_name1].size() == v.size():
-                pretrain_dict2_match[layer_name1] = v
+        # # Initialize img part layer4
+        # if 'layer4' in name_list:
+        #     print('Layer4 Part Initialization Done!')
+        #     layer_name1 = ''
+        #     for idx, part in enumerate(name_list):
+        #         if idx == 0:
+        #             layer_name1 += (part + '_part')
+        #         else:
+        #             layer_name1 += ('.' + part)
+        #     if layer_name1 in model_dict and model_dict[layer_name1].size() == v.size():
+        #         pretrain_dict2_match[layer_name1] = v
 
     model_dict.update(pretrain_dict2_match)
 
     model.load_state_dict(model_dict)
     print("Initialized model with pretrained weights from {}".format(model_url1))
     print("Initialized model with pretrained weights from {}".format(model_url2))
-
-
-"""ResNet"""
 
 
 def gcn_model(num_classes, loss='softmax', pretrained=True, **kwargs):
@@ -532,5 +530,22 @@ def gcn_model(num_classes, loss='softmax', pretrained=True, **kwargs):
         init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet50'])
     return model
 
+
+def gcn_model_contour34(num_classes, loss='softmax', pretrained=True, **kwargs):
+    model = MyModel(
+        num_classes=num_classes,
+        loss=loss,
+        block_rgb=Bottleneck,
+        layers_rgb=[3, 4, 6, 3],
+        block_contour=BasicBlock,
+        layers_contour=[3, 4, 6, 3],
+        last_stride=1,
+        fc_dims=None,
+        dropout_p=None,
+        **kwargs
+    )
+    if pretrained:
+        init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet34'])
+    return model
 
 
