@@ -434,9 +434,9 @@ class MyModel(nn.Module):
 
         # bnneck operation
         v1_new = self.bnneck_rgb(v1)
-        v1_parts_new = torch.zeros_like(v1_parts)
+        v1_parts_new = torch.zeros_like(v1_parts).squeeze(-1)
         for idx in range(self.part_num):
-            v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx])
+            v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx].view(v1_parts.size(0), -1))
         v2_new = self.bnneck_contour(v2)
         v2_parts_new = torch.zeros_like(v2_parts)
         for idx in range(self.part_num):

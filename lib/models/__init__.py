@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 from .resnet import *
 from .resnet50_part import *
+from .resnet50_part_mgn import *
 from .baseline import *
 from .dim_gcn_model import *
 from .dim_gcn_new import *
@@ -11,6 +12,7 @@ from .gcn_model import *
 __model_factory = {
     'resnet50': resnet50,
     'resnet50_part': resnet50_part,
+    'resnet50_part_mgn': resnet50_part_mgn,
     'resnet34_part': resnet34_part,
     'baseline': my_baseline,
     'gcn_model': gcn_model,

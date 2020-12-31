@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['resnet50_part', 'resnet34_part']
+__all__ = ['resnet50_part_mgn', 'resnet34_part_mgn']
 
 import random
 
@@ -157,7 +157,7 @@ class MyModel(nn.Module):
         self.inplanes = 64
         self.dilation = 1
         self.part_num = part_num
-        self.reduced_dim = 256
+        self.reduced_dim = 512
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
@@ -179,11 +179,17 @@ class MyModel(nn.Module):
                                        dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block_rgb, self.feature_dim_base, layers_rgb[3], stride=last_stride,
                                        dilate=replace_stride_with_dilation[2])
-        self.inplanes = 256 * block_rgb.expansion
+        self.layer4_part = nn.Sequential(
+            Bottleneck(1024, 512, downsample=nn.Sequential(nn.Conv2d(1024, 2048, 1, bias=False), nn.BatchNorm2d(2048))),
+            Bottleneck(2048, 512),
+            Bottleneck(2048, 512))
+
         self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.parts_avgpool_rgb = nn.AdaptiveAvgPool2d((self.part_num, 1))
+        self.conv5 = nn.ModuleList([nn.Sequential(nn.Conv2d(2048, self.reduced_dim, 1, bias=False),
+                                                  nn.BatchNorm2d(self.reduced_dim), nn.ReLU()) for _ in range(self.part_num)])
         # self.dropout = nn.Dropout(p=0.5)
-        self.conv5 = DimReduceLayer(self.feature_dim_base*block_rgb.expansion, self.reduced_dim, nonlinear='relu')
+        # self.conv5 = DimReduceLayer(self.feature_dim_base*block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 
         # bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
@@ -194,6 +200,7 @@ class MyModel(nn.Module):
         self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         self._init_params()
+        self._init_conv5(self.conv5)
 
         # Zero-initialize the last BN in each residual branch,
         # so that the residual branch starts with zeros, and each residual block behaves like an identity.
@@ -273,6 +280,17 @@ class MyModel(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+                    
+    @staticmethod
+    def _init_conv5(conv5):
+        for module in conv5:
+            # conv
+            nn.init.kaiming_normal_(module[0].weight, mode='fan_in')
+            # nn.init.constant_(module[0].bias, 0.)
+    
+            # bn
+            nn.init.normal_(module[1].weight, mean=1., std=0.02)
+            nn.init.constant_(module[1].bias, 0.)
 
     def featuremaps(self, x1):
         x1 = self.conv1(x1)
@@ -282,15 +300,15 @@ class MyModel(nn.Module):
         x1 = self.layer1(x1)
         x1 = self.layer2(x1)
         x1 = self.layer3(x1)
+        x1_part = self.layer4_part(x1)
         x1 = self.layer4(x1)
 
-        return x1
+        return x1, x1_part
 
     def forward(self, x1, x2, return_featuremaps=False):
         # x2 here is useless, serving as placeholder
 
-        f1 = self.featuremaps(x1)
-        # f1 = self.featuremaps(x2)
+        f1, f1_part = self.featuremaps(x1)
 
         if return_featuremaps:
             return f1
@@ -298,15 +316,15 @@ class MyModel(nn.Module):
         v1 = self.global_avgpool(f1)
         v1 = v1.view(v1.size(0), -1)
 
-        v1_parts = self.parts_avgpool_rgb(f1)
-        # v1_parts = self.dropout(v1_parts)
-        v1_parts = self.conv5(v1_parts)
+        v1_parts = self.parts_avgpool_rgb(f1_part)
+        v1_parts_ = torch.zeros(v1_parts.shape[0], self.reduced_dim, self.part_num, 1).cuda()
+        for idx in range(self.part_num):
+            v1_parts_[:, :, idx:idx+1, :] = self.conv5[idx](v1_parts[:, :, idx:idx+1, :])
 
         v1_new = self.bnneck_rgb(v1)
-        v1_parts_new = torch.zeros_like(v1_parts).squeeze(-1)
+        v1_parts_new = torch.zeros_like(v1_parts_).squeeze(-1)
         for idx in range(self.part_num):
-            v1_parts_new[:, :, idx] = \
-                self.bnneck_rgb_part[idx](v1_parts[:, :, idx].view(v1_parts.size(0), -1))
+            v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts_[:, :, idx].view(v1_parts_.size(0), -1))
 
         if not self.training:
             test_feat0 = F.normalize(v1_new, p=2, dim=1)
@@ -341,7 +359,7 @@ def init_pretrained_weights(model, model_url):
     model.load_state_dict(model_dict)
 
 
-def resnet50_part(num_classes, loss='softmax', pretrained=True, **kwargs):
+def resnet50_part_mgn(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
@@ -359,7 +377,7 @@ def resnet50_part(num_classes, loss='softmax', pretrained=True, **kwargs):
     return model
 
 
-def resnet34_part(num_classes, loss='softmax', pretrained=True, **kwargs):
+def resnet34_part_mgn(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
