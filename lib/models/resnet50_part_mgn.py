@@ -202,7 +202,7 @@ class MyModel(nn.Module):
         self._init_params()
         self._init_conv5(self.conv5)
 
-        # Zero-initialize the last BN in each residual branch,
+        # Zero-initialize the last BN in each resid|ual branch,
         # so that the residual branch starts with zeros, and each residual block behaves like an identity.
         # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         if zero_init_residual:
@@ -317,22 +317,25 @@ class MyModel(nn.Module):
         v1 = v1.view(v1.size(0), -1)
 
         v1_parts = self.parts_avgpool_rgb(f1_part)
-        v1_parts_ = torch.zeros(v1_parts.shape[0], self.reduced_dim, self.part_num, 1).cuda()
+        v1_parts_ = torch.zeros(v1_parts.shape[0], self.reduced_dim, self.part_num).cuda()
         for idx in range(self.part_num):
-            v1_parts_[:, :, idx:idx+1, :] = self.conv5[idx](v1_parts[:, :, idx:idx+1, :])
+            v1_parts_[:, :, idx:idx+1] = self.conv5[idx](v1_parts[:, :, idx:idx+1, :]).squeeze(-1)
 
         v1_new = self.bnneck_rgb(v1)
-        v1_parts_new = torch.zeros_like(v1_parts_).squeeze(-1)
+        v1_parts_new = torch.zeros_like(v1_parts_)
         for idx in range(self.part_num):
             v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts_[:, :, idx].view(v1_parts_.size(0), -1))
 
         if not self.training:
+            # Features after bnneck
             test_feat0 = F.normalize(v1_new, p=2, dim=1)
-            test_feat1 = F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)
-            test_feat2 = F.normalize(torch.cat([F.normalize(v1_new, p=2, dim=1),
-                                    F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)], dim=1), p=2, dim=1)
-            test_feat3 = F.normalize(torch.cat([F.normalize(v1, p=2, dim=1),
-                                    F.normalize(v1_parts.view(v1_parts.size(0), -1), p=2, dim=1)], dim=1), p=2, dim=1)
+            test_feat1 = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
+            test_feat2 = F.normalize(torch.cat([test_feat0, test_feat1], dim=1), p=2, dim=1)
+
+            # Features before bnneck
+            v1 = F.normalize(v1, p=2, dim=1)
+            v1_parts = F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)
+            test_feat3 = F.normalize(torch.cat([v1, v1_parts], dim=1), p=2, dim=1)
 
             return [test_feat0, test_feat1, test_feat2, test_feat3]
 
@@ -344,7 +347,7 @@ class MyModel(nn.Module):
             y1_part_i = self.classifiers_part[idx](v1_part_i)
             y1_parts.append(y1_part_i)
 
-        return [y1, y1_parts], [v1, v1_parts.view(v1_parts.size(0), -1)]
+        return [y1, y1_parts], [v1, v1_parts]
 
 
 def init_pretrained_weights(model, model_url):

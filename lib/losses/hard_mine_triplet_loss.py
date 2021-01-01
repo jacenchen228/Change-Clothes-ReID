@@ -3,17 +3,7 @@ from __future__ import division
 
 import torch
 import torch.nn as nn
-
-
-def normalize(x, axis=-1):
-    """Normalizing to unit length along the specified dimension.
-    Args:
-      x: pytorch Variable
-    Returns:
-      x: pytorch Variable, same shape as input
-    """
-    x = 1. * x / (torch.norm(x, 2, axis, keepdim=True).expand_as(x) + 1e-12)
-    return x
+from torch.nn import functional as F
 
 
 class TripletLoss(nn.Module):
@@ -41,7 +31,10 @@ class TripletLoss(nn.Module):
             targets (torch.LongTensor): ground truth labels with shape (num_classes).
         """
         if normalize_feature:
-            inputs = normalize(inputs, axis=-1)
+            inputs = F.normalize(inputs, p=2, dim=1)
+
+        if(inputs.ndim != 2):
+            inputs = inputs.view(inputs.size(0), -1)
 
         n = inputs.size(0)
         

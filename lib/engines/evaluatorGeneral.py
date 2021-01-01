@@ -4,7 +4,6 @@ from collections import defaultdict
 import os.path as osp
 
 import torch
-from torch.autograd import Variable
 from torch.nn import functional as F
 
 from lib.utils import AverageMeter

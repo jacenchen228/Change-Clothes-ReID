@@ -10,7 +10,6 @@ from torch.nn import functional as F
 from lib.utils import AverageMeter
 from lib.utils import re_ranking, visualize_ranked_results
 from lib.metrics import compute_distance_matrix, evaluate_rank
-from lib.losses import normalize
 
 ID2FEAT_NAME = {
     0: 'feat 0',
