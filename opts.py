@@ -163,6 +163,8 @@ def init_parser():
                         help='part number of contour features')
     parser.add_argument('--part-num', type=int, default=3,
                         help='part number of features')
+    parser.add_argument('--part-weight', type=float, default=1.0,
+                        help='distance weight of part features')
 
     # ************************************************************
     # Test settings

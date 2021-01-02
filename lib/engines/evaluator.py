@@ -12,11 +12,11 @@ from lib.utils import re_ranking, visualize_ranked_results
 from lib.metrics import compute_distance_matrix, evaluate_rank
 
 ID2FEAT_NAME = {
-    0: 'feat 0',
-    1: 'feat 1',
-    2: 'feat 2',
-    3: 'feat 3',
-    4: 'feat 4',
+    0: 'global feat',
+    1: 'part feat',
+    2: 'concate feat',
+    3: 'concate feat without normalizing global and part',
+    4: 'concate contour feat',
     5: 'feat 5',
     6: 'feat 6'
 }

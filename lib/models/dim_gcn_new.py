@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dim_gcn_new']
+__all__ = ['dim_gcn_new50', 'dim_gcn_new34']
 
 import random
 
@@ -147,7 +147,7 @@ class MyModel(nn.Module):
 
     def __init__(self, num_classes, loss, block_rgb, layers_rgb, block_contour, layers_contour, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num=3, **kwargs):
+                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num=3, part_weight=1.0, **kwargs):
         super(MyModel, self).__init__()
         self.cnt = 0
 
@@ -160,6 +160,7 @@ class MyModel(nn.Module):
         self.inplanes = 64
         self.dilation = 1
         self.part_num = part_num
+        self.part_weight = part_weight
         self.reduced_dim = 256
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -216,15 +217,15 @@ class MyModel(nn.Module):
 
         # bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
-        self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
+        # self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
         self.bnneck_contour = nn.BatchNorm1d(self.feature_dim_base*block_contour.expansion)
-        self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
+        # self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
         self.classifier_contour = nn.Linear(self.feature_dim_base*block_contour.expansion, num_classes, bias=False)
-        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
-        self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         # mutual information learning module
         global_discriminator_layers = [2048, 512, 128, 32]
@@ -434,48 +435,58 @@ class MyModel(nn.Module):
 
         # bnneck operation
         v1_new = self.bnneck_rgb(v1)
-        v1_parts_new = torch.zeros_like(v1_parts).squeeze(-1)
-        for idx in range(self.part_num):
-            v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx].view(v1_parts.size(0), -1))
+        # v1_parts_new = torch.zeros_like(v1_parts).squeeze(-1)
+        # for idx in range(self.part_num):
+        #     v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx].view(v1_parts.size(0), -1))
         v2_new = self.bnneck_contour(v2)
-        v2_parts_new = torch.zeros_like(v2_parts)
-        for idx in range(self.part_num):
-            v2_parts_new[:, :, idx] = self.bnneck_contour_part[idx](v2_parts[:, :, idx])
+        # v2_parts_new = torch.zeros_like(v2_parts)
+        # for idx in range(self.part_num):
+        #     v2_parts_new[:, :, idx] = self.bnneck_contour_part[idx](v2_parts[:, :, idx])
 
         # when evaluation
         if not self.training:
             global_feat = F.normalize(v1_new, p=2, dim=1)
-            part_feat = F.normalize(v1_parts_new.view(v1_parts_new.size(0), -1), p=2, dim=1)
-            concate_feat = F.normalize(torch.cat([global_feat, part_feat], dim=1), p=2, dim=1)
-            
-            global_contour_feat = F.normalize(v2_new, p=2, dim=1)
-            part_contour_feat = F.normalize(v2_parts_new.view(v2_parts_new.size(0), -1), p=2, dim=1)
-            concate_contour_feat = F.normalize(torch.cat([global_contour_feat, part_contour_feat], dim=1), p=2, dim=1)
+            # part_feat = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
+            part_feat = F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)
+            concate_feat = torch.cat([global_feat, self.part_weight*part_feat], dim=1)
+            # concate_feat1 = F.normalize(torch.cat([v1_new, self.part_weight*
+            #                                       v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1), p=2, dim=1)
+            concate_feat1 = F.normalize(torch.cat([v1_new, self.part_weight*
+                                                  v1_parts.view(v1_parts.size(0), -1)], dim=1), p=2, dim=1)
 
-            return [global_feat, part_feat, concate_feat, concate_contour_feat]
+            # global_contour_feat = F.normalize(v2_new, p=2, dim=1)
+            # part_contour_feat = F.normalize(v2_parts_new.view(v2_parts_new.size(0), -1), p=2, dim=1)
+            # concate_contour_feat = F.normalize(torch.cat([global_contour_feat, part_contour_feat], dim=1), p=2, dim=1)
+            # concate_contour_feat = F.normalize(torch.cat([v2_new, self.part_weight*
+            #                                       v2_parts_new.view(v2_parts_new.size(0), -1)], dim=1), p=2, dim=1)
+            concate_contour_feat = F.normalize(torch.cat([v2_new, self.part_weight*
+                                                  v2_parts.view(v2_parts.size(0), -1)], dim=1), p=2, dim=1)
+
+            return [global_feat, part_feat, concate_feat, concate_feat1, concate_contour_feat]
 
         # predict probability
         y1 = self.classifier(v1_new)
-        y1_parts = []
-        for idx in range(self.part_num):
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            y1_part_i = self.classifiers_part[idx](v1_part_i)
-            y1_parts.append(y1_part_i)
+        # y1_parts = []
+        # for idx in range(self.part_num):
+        #     v1_part_i = v1_parts_new[:, :, idx]
+        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
+        #     y1_parts.append(y1_part_i)
         y2 = self.classifier_contour(v2_new)
-        y2_parts = []
-        for idx in range(self.part_num):
-            v2_part_i = v2_parts_new[:, :, idx]
-            v2_part_i = v2_part_i.view(v2_part_i.size(0), -1)
-            y2_part_i = self.classifiers_contour_part[idx](v2_part_i)
-            y2_parts.append(y2_part_i)
+        # y2_parts = []
+        # for idx in range(self.part_num):
+        #     v2_part_i = v2_parts_new[:, :, idx]
+        #     v2_part_i = v2_part_i.view(v2_part_i.size(0), -1)
+        #     y2_part_i = self.classifiers_contour_part[idx](v2_part_i)
+        #     y2_parts.append(y2_part_i)
 
         # calcuate mutual information
         ej, em, ej_part, em_part = self.deep_info_max(v1, v2, v1_parts, v2_parts)
 
-        return [y1, y1_parts, y2, y2_parts], [v1, v1_parts.view(v1_parts.size(0), -1), v2, v2_parts.view(v2_parts.size(0), -1)], \
+        # return [y1, y1_parts, y2, y2_parts], [v1, v2, v1_parts, v2_parts], \
+        #        ej, em, ej_part, em_part
+        return [y1, y2], [v1, v2, v1_parts, v2_parts], \
                ej, em, ej_part, em_part
-
 
 def init_pretrained_weights(model, model_url):
     """Initializes model with pretrained weights.
@@ -553,27 +564,27 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url1))
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
-# def dim_gcn_new(num_classes, loss='softmax', pretrained=True, **kwargs):
-#     model = MyModel(
-#         num_classes=num_classes,
-#         loss=loss,
-#         block_rgb=Bottleneck,
-#         layers_rgb=[3, 4, 6, 3],
-#         block_contour=Bottleneck,
-#         layers_contour=[3, 4, 6, 3],
-#         last_stride=1,
-#         fc_dims=None,
-#         dropout_p=None,
-#         **kwargs
-#     )
-#
-#     if pretrained:
-#         init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet50'])
-#
-#     return model
+def dim_gcn_new50(num_classes, loss='softmax', pretrained=True, **kwargs):
+    model = MyModel(
+        num_classes=num_classes,
+        loss=loss,
+        block_rgb=Bottleneck,
+        layers_rgb=[3, 4, 6, 3],
+        block_contour=Bottleneck,
+        layers_contour=[3, 4, 6, 3],
+        last_stride=1,
+        fc_dims=None,
+        dropout_p=None,
+        **kwargs
+    )
+
+    if pretrained:
+        init_pretrained_weights_hybrid(model, model_urls['resnet50'], model_urls['resnet50'])
+
+    return model
 
 
-def dim_gcn_new(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcn_new34(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,

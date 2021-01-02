@@ -8,6 +8,7 @@ from .baseline import *
 from .dim_gcn_model import *
 from .dim_gcn_new import *
 from .gcn_model import *
+from .dim_model import *
 
 __model_factory = {
     'resnet50': resnet50,
@@ -18,7 +19,9 @@ __model_factory = {
     'gcn_model': gcn_model,
     'gcn_model34': gcn_model_contour34,
     'dim_gcn_model': dim_gcn_model,
-    'dim_gcn_new': dim_gcn_new
+    'dim_gcn_new50': dim_gcn_new50,
+    'dim_gcn_new34': dim_gcn_new34,
+    'dim_model50': dim_model50
 }
 
 

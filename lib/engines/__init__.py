@@ -7,19 +7,8 @@ from torch import nn
 
 from lib.utils import save_checkpoint, visactmap
 from .trainer import Trainer
-from .evaluator import Evaluator
+from .evaluator import Evaluator, ID2FEAT_NAME
 from .evaluatorGeneral import EvaluatorGeneral
-
-
-ID2FEAT_NAME = {
-    0: 'feat 0',
-    1: 'feat 1',
-    2: 'feat 2',
-    3: 'feat 3',
-    4: 'feat 4',
-    5: 'feat 5',
-    6: 'feat 6'
-}
 
 
 class Engine(object):

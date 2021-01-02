@@ -105,7 +105,8 @@ def main():
         pretrained=(not args.no_pretrained),
         use_gpu=use_gpu,
         batch_size=args.batch_size,
-        part_num=args.part_num
+        part_num=args.part_num,
+        part_weight=args.part_weight
     )
     model = model.cuda()
 

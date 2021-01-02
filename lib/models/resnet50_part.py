@@ -312,13 +312,12 @@ class MyModel(nn.Module):
             # Features after bnneck
             test_feat0 = F.normalize(v1_new, p=2, dim=1)
             test_feat1 = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
-            test_feat2 = F.normalize(torch.cat([test_feat0, test_feat1], dim=1), p=2, dim=1)
+            test_feat2 = torch.cat([test_feat0, test_feat1], dim=1)
+            test_feat3 = F.normalize(torch.cat([v1_new, v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1),
+                                     p=2, dim=1)
 
             # Features before bnneck
-            v1 = F.normalize(v1, p=2, dim=1)
-            v1_parts = F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)
-            test_feat3 = F.normalize(torch.cat([v1, v1_parts], dim=1), p=2, dim=1)
-            test_feat4 = torch.cat([v1, v1_parts], dim=1)
+            test_feat4 = F.normalize(torch.cat([v1, v1_parts.view(v1_parts.size(0), -1)], dim=1), p=2, dim=1)
 
             return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4]
 
@@ -330,7 +329,7 @@ class MyModel(nn.Module):
             y1_part_i = self.classifiers_part[idx](v1_part_i)
             y1_parts.append(y1_part_i)
 
-        return [y1, y1_parts], [v1, v1_parts]
+        return [y1, y1_parts], [v1]
 
 
 def init_pretrained_weights(model, model_url):

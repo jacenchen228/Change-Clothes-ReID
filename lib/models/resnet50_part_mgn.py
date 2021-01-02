@@ -143,7 +143,7 @@ class MyModel(nn.Module):
 
     def __init__(self, num_classes, loss, block_rgb, layers_rgb, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num=3,
+                 norm_layer=None, last_stride=2, fc_dims=None, dropout_p=None, part_num=3, part_weight=1.0,
                  **kwargs):
         super(MyModel, self).__init__()
         self.cnt = 0
@@ -157,6 +157,7 @@ class MyModel(nn.Module):
         self.inplanes = 64
         self.dilation = 1
         self.part_num = part_num
+        self.part_weight = part_weight  # weight for part features
         self.reduced_dim = 512
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -197,7 +198,7 @@ class MyModel(nn.Module):
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
-        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_part = nn.ModnuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         self._init_params()
         self._init_conv5(self.conv5)
@@ -330,24 +331,28 @@ class MyModel(nn.Module):
             # Features after bnneck
             test_feat0 = F.normalize(v1_new, p=2, dim=1)
             test_feat1 = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
-            test_feat2 = F.normalize(torch.cat([test_feat0, test_feat1], dim=1), p=2, dim=1)
+            test_feat2 = F.normalize(torch.cat([test_feat0, self.part_weight*test_feat1], dim=1), p=2, dim=1)
 
             # Features before bnneck
             v1 = F.normalize(v1, p=2, dim=1)
             v1_parts = F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)
-            test_feat3 = F.normalize(torch.cat([v1, v1_parts], dim=1), p=2, dim=1)
+            test_feat3 = F.normalize(torch.cat([v1, self.part_weight*v1_parts], dim=1), p=2, dim=1)
 
-            return [test_feat0, test_feat1, test_feat2, test_feat3]
+            # Features without normalizing v1_new and v1_parts_new
+            test_feat4 = F.normalize(torch.cat([v1_new, self.part_weight*v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1),
+                                     p=2, dim=1)
+
+            return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4]
 
         y1 = self.classifier(v1_new)
-        y1_parts = []
-        for idx in range(self.part_num):
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            y1_part_i = self.classifiers_part[idx](v1_part_i)
-            y1_parts.append(y1_part_i)
+        # y1_parts = []
+        # for idx in range(self.part_num):
+        #     v1_part_i = v1_parts_new[:, :, idx]
+        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
+        #     y1_parts.append(y1_part_i)
 
-        return [y1, y1_parts], [v1, v1_parts]
+        return [y1], [v1, v1_parts_new]
 
 
 def init_pretrained_weights(model, model_url):
