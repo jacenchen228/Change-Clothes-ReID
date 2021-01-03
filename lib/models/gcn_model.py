@@ -224,9 +224,9 @@ class MyModel(nn.Module):
         # Classifiers
         self.classifier = nn.Linear(self.feature_dim, num_classes, bias=False)
         self.classifier_contour = nn.Linear(self.feature_dim_base * block_contour.expansion, num_classes, bias=False)
-        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
-        self.classifiers_contour_part = nn.ModuleList(
-            [nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_contour_part = nn.ModuleList(
+        #     [nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         self._init_params()
 
@@ -419,30 +419,32 @@ class MyModel(nn.Module):
             global_feat = F.normalize(v1_new, p=2, dim=1)
             part_feat = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
             concate_feat = torch.cat([global_feat, part_feat], dim=1)
+            concate_feat1 = F.normalize(torch.cat([v1_new, self.part_weight*
+                                                  v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1), p=2, dim=1)
 
             global_contour_feat = F.normalize(v2_new, p=2, dim=1)
             part_contour_feat = F.normalize(v2_parts_new, p=2, dim=1).view(v2_parts_new.size(0), -1)
             concate_contour_feat = torch.cat([global_contour_feat, part_contour_feat], dim=1)
 
-            return [global_feat, part_feat, concate_feat, concate_contour_feat]
+            return [global_feat, part_feat, concate_feat, concate_feat1, concate_contour_feat]
 
         # Predict probability
         y1 = self.classifier(v1_new)
-        y1_parts = []
-        for idx in range(self.part_num):
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            y1_part_i = self.classifiers_part[idx](v1_part_i)
-            y1_parts.append(y1_part_i)
+        # y1_parts = []
+        # for idx in range(self.part_num):
+        #     v1_part_i = v1_parts_new[:, :, idx]
+        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
+        #     y1_parts.append(y1_part_i)
         y2 = self.classifier_contour(v2_new)
-        y2_parts = []
-        for idx in range(self.part_num):
-            v2_part_i = v2_parts_new[:, :, idx]
-            v2_part_i = v2_part_i.view(v2_part_i.size(0), -1)
-            y2_part_i = self.classifiers_contour_part[idx](v2_part_i)
-            y2_parts.append(y2_part_i)
+        # y2_parts = []
+        # for idx in range(self.part_num):
+        #     v2_part_i = v2_parts_new[:, :, idx]
+        #     v2_part_i = v2_part_i.view(v2_part_i.size(0), -1)
+        #     y2_part_i = self.classifiers_contour_part[idx](v2_part_i)
+        #     y2_parts.append(y2_part_i)
 
-        return [y1, y1_parts, y2, y2_parts], [v1, v1_parts, v2, v2_parts]
+        return [y1, y2], [v1, v1_parts_new, v2, v2_parts_new]
 
 
 def init_pretrained_weights(model, model_url):

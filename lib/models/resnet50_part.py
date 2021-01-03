@@ -191,7 +191,7 @@ class MyModel(nn.Module):
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
-        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         self._init_params()
 
@@ -322,14 +322,14 @@ class MyModel(nn.Module):
             return [test_feat0, test_feat1, test_feat2, test_feat3, test_feat4]
 
         y1 = self.classifier(v1_new)
-        y1_parts = []
-        for idx in range(self.part_num):
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            y1_part_i = self.classifiers_part[idx](v1_part_i)
-            y1_parts.append(y1_part_i)
+        # y1_parts = []
+        # for idx in range(self.part_num):
+        #     v1_part_i = v1_parts_new[:, :, idx]
+        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
+        #     y1_parts.append(y1_part_i)
 
-        return [y1, y1_parts], [v1]
+        return [y1], [v1, v1_parts_new]
 
 
 def init_pretrained_weights(model, model_url):

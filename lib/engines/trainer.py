@@ -116,15 +116,15 @@ class Trainer(object):
                       'DIM {loss_dim.val:.4f} ({loss_dim.avg:.4f})\t'
                       'Lr1 {lr:.6f}\t'
                       'Eta {eta}'.format(
-                    epoch + 1, self.max_epoch, batch_idx + 1, self.train_len,
-                    batch_time=batch_time,
-                    data_time=data_time,
-                    loss=losses,
-                    loss_cent1=losses_cent,
-                    loss_trip1=losses_trip,
-                    loss_dim=losses_dim,
-                    lr=self.optimizer.param_groups[0]['lr'],
-                    eta=eta_str
+                      epoch + 1, self.max_epoch, batch_idx + 1, self.train_len,
+                      batch_time=batch_time,
+                      data_time=data_time,
+                      loss=losses,
+                      loss_cent1=losses_cent,
+                      loss_trip1=losses_trip,
+                      loss_dim=losses_dim,
+                      lr=self.optimizer.param_groups[0]['lr'],
+                      eta=eta_str
                 )
                 )
 

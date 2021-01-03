@@ -212,8 +212,8 @@ class MyModel(nn.Module):
         # classifiers
         self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
         self.classifier_contour = nn.Linear(self.feature_dim_base*block_contour.expansion, num_classes, bias=False)
-        self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
-        self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
 
         # mutual information learning module
         global_discriminator_layers = [2048, 512, 128, 32]
@@ -412,24 +412,24 @@ class MyModel(nn.Module):
 
         # Predict probability
         y1 = self.classifier(v1_new)
-        y1_parts = []
-        for idx in range(self.part_num):
-            v1_part_i = v1_parts_new[:, :, idx]
-            v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
-            y1_part_i = self.classifiers_part[idx](v1_part_i)
-            y1_parts.append(y1_part_i)
+        # y1_parts = []
+        # for idx in range(self.part_num):
+        #     v1_part_i = v1_parts_new[:, :, idx]
+        #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
+        #     y1_part_i = self.classifiers_part[idx](v1_part_i)
+        #     y1_parts.append(y1_part_i)
         y2 = self.classifier_contour(v2_new)
-        y2_parts = []
-        for idx in range(self.part_num):
-            v2_part_i = v2_parts_new[:, :, idx]
-            v2_part_i = v2_part_i.view(v2_part_i.size(0), -1)
-            y2_part_i = self.classifiers_contour_part[idx](v2_part_i)
-            y2_parts.append(y2_part_i)
+        # y2_parts = []
+        # for idx in range(self.part_num):
+        #     v2_part_i = v2_parts_new[:, :, idx]
+        #     v2_part_i = v2_part_i.view(v2_part_i.size(0), -1)
+        #     y2_part_i = self.classifiers_contour_part[idx](v2_part_i)
+        #     y2_parts.append(y2_part_i)
 
         # Calcuate mutual information
         ej, em, ej_part, em_part = self.deep_info_max(v1, v2, v1_parts, v2_parts)
 
-        return [y1, y1_parts, y2, y2_parts], [v1, v2, v1_parts, v2_parts], \
+        return [y1, y2], [v1, v2, v1_parts_new, v2_parts_new], \
                ej, em, ej_part, em_part
 
 

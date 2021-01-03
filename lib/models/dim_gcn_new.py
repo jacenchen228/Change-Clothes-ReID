@@ -217,9 +217,9 @@ class MyModel(nn.Module):
 
         # bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
-        # self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
+        self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
         self.bnneck_contour = nn.BatchNorm1d(self.feature_dim_base*block_contour.expansion)
-        # self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
+        self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
@@ -435,32 +435,29 @@ class MyModel(nn.Module):
 
         # bnneck operation
         v1_new = self.bnneck_rgb(v1)
-        # v1_parts_new = torch.zeros_like(v1_parts).squeeze(-1)
-        # for idx in range(self.part_num):
-        #     v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx].view(v1_parts.size(0), -1))
+        v1_parts_new = torch.zeros_like(v1_parts).squeeze(-1)
+        for idx in range(self.part_num):
+            v1_parts_new[:, :, idx] = self.bnneck_rgb_part[idx](v1_parts[:, :, idx].view(v1_parts.size(0), -1))
         v2_new = self.bnneck_contour(v2)
-        # v2_parts_new = torch.zeros_like(v2_parts)
-        # for idx in range(self.part_num):
-        #     v2_parts_new[:, :, idx] = self.bnneck_contour_part[idx](v2_parts[:, :, idx])
+        v2_parts_new = torch.zeros_like(v2_parts)
+        for idx in range(self.part_num):
+            v2_parts_new[:, :, idx] = self.bnneck_contour_part[idx](v2_parts[:, :, idx])
 
         # when evaluation
         if not self.training:
             global_feat = F.normalize(v1_new, p=2, dim=1)
-            # part_feat = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
-            part_feat = F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)
+            part_feat = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
             concate_feat = torch.cat([global_feat, self.part_weight*part_feat], dim=1)
-            # concate_feat1 = F.normalize(torch.cat([v1_new, self.part_weight*
-            #                                       v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1), p=2, dim=1)
             concate_feat1 = F.normalize(torch.cat([v1_new, self.part_weight*
-                                                  v1_parts.view(v1_parts.size(0), -1)], dim=1), p=2, dim=1)
+                                                  v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1), p=2, dim=1)
 
             # global_contour_feat = F.normalize(v2_new, p=2, dim=1)
             # part_contour_feat = F.normalize(v2_parts_new.view(v2_parts_new.size(0), -1), p=2, dim=1)
             # concate_contour_feat = F.normalize(torch.cat([global_contour_feat, part_contour_feat], dim=1), p=2, dim=1)
-            # concate_contour_feat = F.normalize(torch.cat([v2_new, self.part_weight*
-            #                                       v2_parts_new.view(v2_parts_new.size(0), -1)], dim=1), p=2, dim=1)
+
             concate_contour_feat = F.normalize(torch.cat([v2_new, self.part_weight*
-                                                  v2_parts.view(v2_parts.size(0), -1)], dim=1), p=2, dim=1)
+                                                  v2_parts_new.view(v2_parts_new.size(0), -1)], dim=1), p=2, dim=1)
+
 
             return [global_feat, part_feat, concate_feat, concate_feat1, concate_contour_feat]
 
@@ -485,7 +482,7 @@ class MyModel(nn.Module):
 
         # return [y1, y1_parts, y2, y2_parts], [v1, v2, v1_parts, v2_parts], \
         #        ej, em, ej_part, em_part
-        return [y1, y2], [v1, v2, v1_parts, v2_parts], \
+        return [y1, y2], [v1, v2, v1_parts_new, v2_parts_new], \
                ej, em, ej_part, em_part
 
 def init_pretrained_weights(model, model_url):
