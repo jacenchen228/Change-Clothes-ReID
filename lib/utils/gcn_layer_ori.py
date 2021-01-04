@@ -24,9 +24,6 @@ class GraphConvolution(Module):
         else:
             self.register_parameter('bias', None)
 
-        self.relu = nn.ReLU()
-        self.bns = nn.ModuleList([nn.BatchNorm1d(out_features) for _ in range(self.part_num)])
-
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -35,10 +32,6 @@ class GraphConvolution(Module):
         if self.bias is not None:
             nn.init.constant_(self.bias, 0)
 
-        for m in self.bns.modules():
-            nn.init.constant_(m.weight, 1)
-            nn.init.constant_(m.bias, 0)
-
     def forward(self, input, adj):
         support = torch.matmul(input, self.weight)
         # output = self.delta * torch.matmul(adj, support) + (1-self.delta) * support
@@ -46,12 +39,6 @@ class GraphConvolution(Module):
 
         if self.bias is not None:
             output + self.bias
-
-        # Apply batch normalization to each part separately
-        for idx in range(self.part_num):
-            output[:, idx, :] = self.bns[idx](output[:, idx, :])
-
-        output = self.relu(output)
 
         return output
 
