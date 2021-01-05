@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dim_gcn_new50', 'dim_gcn_new34']
+__all__ = ['dim_gcn_multi50', 'dim_gcn_multi34']
 
 import random
 
@@ -16,7 +16,8 @@ import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
 
 from lib.utils.DIM.model import Discriminator
-from lib.utils.gcn_layer_ori import GraphConvolution
+# from lib.utils.gcn_layer_ori import GraphConvolution
+from lib.utils.gcn_layer import GraphConvolution
 from lib.utils import GeneralizedMeanPoolingP
 
 model_urls = {
@@ -239,17 +240,17 @@ class MyModel(nn.Module):
 
         # Contour Hierarchical Graph modeling module
         self.contour_gnns = []
-        self.contour_gnn_bns = []
+        # self.contour_gnn_bns = []
         for idx in range(self.layer_num):
             base_dim = layer_base_dims[idx]
             gnns = nn.ModuleList([GraphConvolution(base_dim*block_contour.expansion, base_dim*block_contour.expansion, bias=True)
                                        for _ in range(self.part_num + 1)])
-            bns_gnn = nn.ModuleList([nn.BatchNorm1d(base_dim*block_contour.expansion) for _ in range(self.part_num + 1)])
+            # bns_gnn = nn.ModuleList([nn.BatchNorm1d(base_dim*block_contour.expansion) for _ in range(self.part_num + 1)])
 
             self.contour_gnns.append(gnns)
-            self.contour_gnn_bns.append(bns_gnn)
+            # self.contour_gnn_bns.append(bns_gnn)
         self.contour_gnns = nn.ModuleList(self.contour_gnns)
-        self.contour_gnn_bns = nn.ModuleList(self.contour_gnn_bns)
+        # self.contour_gnn_bns = nn.ModuleList(self.contour_gnn_bns)
 
         # Mutual information learning module
         self.global_discriminators = []
@@ -266,7 +267,7 @@ class MyModel(nn.Module):
                                                  for _ in range(self.part_num)])
 
             self.global_discriminators.append(global_discriminator)
-            self.part_part_discriminators.append(part_discriminators)
+            self.part_discriminators.append(part_discriminators)
         self.global_discriminators = nn.ModuleList(self.global_discriminators)
         self.part_discriminators = nn.ModuleList(self.part_discriminators)
 
@@ -378,9 +379,9 @@ class MyModel(nn.Module):
             adj_mat_i = self.cos_sim(part_i)
             adj_mat_i = self.normalize(adj_mat_i)
             part_i_new = self.contour_gnns[layer_idx][idx](part_i, adj_mat_i)
-            part_i_new = self.contour_gnn_bns[layer_idx][idx](part_i_new.transpose(1, 2))
-            part_i_new = part_i_new.transpose(1, 2)
-            part_i_new = self.relu(part_i_new)
+            # part_i_new = self.contour_gnn_bns[layer_idx][idx](part_i_new.transpose(1, 2))
+            # part_i_new = part_i_new.transpose(1, 2)
+            # part_i_new = self.relu(part_i_new)
 
             v_local[:, idx, :] = torch.max(part_i_new, dim=1)[0]
 
@@ -388,9 +389,9 @@ class MyModel(nn.Module):
         adj_mat = self.cos_sim(v_local)
         adj_mat = self.normalize(adj_mat)
         v_global = self.contour_gnns[layer_idx][-1](v_local, adj_mat)
-        v_global = self.contour_gnn_bns[layer_idx][-1](v_global.transpose(1, 2))
-        v_global = v_global.transpose(1, 2)
-        v_global = self.relu(v_global)
+        # v_global = self.contour_gnn_bns[layer_idx][-1](v_global.transpose(1, 2))
+        # v_global = v_global.transpose(1, 2)
+        # v_global = self.relu(v_global)
         v_global = torch.max(v_global, dim=1)[0]
 
         return v_global, v_local
@@ -412,22 +413,22 @@ class MyModel(nn.Module):
         x1 = self.layer1(x1)
         appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[0](
-            self.parts_avgpool(x1)).view(x1.size(0), x1.size(1), -1))
+            self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer2(x1)
         appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[1](
-            self.parts_avgpool(x1)).view(x1.size(0), x1.size(1), -1))
+            self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer3(x1)
         appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[2](
-            self.parts_avgpool(x1)).view(x1.size(0), x1.size(1), -1))
+            self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer4(x1)
         appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[3](
-            self.parts_avgpool(x1)).view(x1.size(0), x1.size(1), -1))
+            self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         # Feature extraction for contour images
         x2 = self.conv1_contour(x2)
@@ -441,28 +442,28 @@ class MyModel(nn.Module):
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[0](contour_part)
-        contour_part_features.append(contour_part.view(x2.size(0), x2.size(1), -1))
+        contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer2_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=1)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[1](contour_part)
-        contour_part_features.append(contour_part.view(x2.size(0), x2.size(1), -1))
+        contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer3_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=2)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[2](contour_part)
-        contour_part_features.append(contour_part.view(x2.size(0), x2.size(1), -1))
+        contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer4_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=3)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[3](contour_part)
-        contour_part_features.append(contour_part.view(x2.size(0), x2.size(1), -1))
+        contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         return x1, x2, appearance_global_features, appearance_part_features, \
                contour_global_features, contour_part_features
@@ -658,7 +659,7 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url1))
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
-def dim_gcn_new50(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcn_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
@@ -678,7 +679,7 @@ def dim_gcn_new50(num_classes, loss='softmax', pretrained=True, **kwargs):
     return model
 
 
-def dim_gcn_new34(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcn_multi34(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,

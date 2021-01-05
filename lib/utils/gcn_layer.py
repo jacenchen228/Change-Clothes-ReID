@@ -35,9 +35,11 @@ class GraphConvolution(Module):
         if self.bias is not None:
             nn.init.constant_(self.bias, 0)
 
-        for m in self.bns.modules():
-            nn.init.constant_(m.weight, 1)
-            nn.init.constant_(m.bias, 0)
+        if hasattr(self, 'bns'):
+            for m in self.bns.modules():
+                if isinstance(m, nn.BatchNorm1d):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
 
     def forward(self, input, adj):
         support = torch.matmul(input, self.weight)
@@ -48,8 +50,9 @@ class GraphConvolution(Module):
             output + self.bias
 
         # Apply batch normalization to each part separately
-        for idx in range(self.part_num):
-            output[:, idx, :] = self.bns[idx](output[:, idx, :])
+        if hasattr(self, 'bns'):
+            for idx in range(self.part_num):
+                output[:, idx, :] = self.bns[idx](output[:, idx, :])
 
         output = self.relu(output)
 

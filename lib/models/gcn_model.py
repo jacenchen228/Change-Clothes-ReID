@@ -12,7 +12,7 @@ from torch.nn import functional as F
 import torch.utils.model_zoo as model_zoo
 
 from lib.utils import GeneralizedMeanPoolingP
-from lib.utils.gcn.gcn_layer import GraphConvolution
+from lib.utils.gcn_layer import GraphConvolution
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -213,7 +213,7 @@ class MyModel(nn.Module):
         self.feature_dim_gnn = self.feature_dim_base * block_contour.expansion
         self.gnns = nn.ModuleList([GraphConvolution(self.feature_dim_gnn, self.feature_dim_gnn, bias=True)
                                    for _ in range(self.part_num + 1)])
-        self.bns_gnn = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num + 1)])
+        # self.bns_gnn = nn.ModuleList([nn.BatchNorm1d(self.feature_dim_gnn) for _ in range(self.part_num + 1)])
 
         # Bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim)
