@@ -11,3 +11,4 @@ from .rerank import *
 from .orthogonal import *
 from .pooling import *
 from .gcn_layer import *
+from .circle_softmax import *

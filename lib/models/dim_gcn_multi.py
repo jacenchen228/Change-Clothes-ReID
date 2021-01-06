@@ -16,9 +16,10 @@ import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
 
 from lib.utils.DIM.model import Discriminator
-# from lib.utils.gcn_layer_ori import GraphConvolution
-from lib.utils.gcn_layer import GraphConvolution
+from lib.utils.gcn_layer_ori import GraphConvolution
+# from lib.utils.gcn_layer import GraphConvolution
 from lib.utils import GeneralizedMeanPoolingP
+from lib.utils import CircleSoftmax
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -187,19 +188,15 @@ class MyModel(nn.Module):
         self.inplanes = 256 * block_rgb.expansion
         # self.layer4_part = self._make_layer(block_rgb, self.feature_dim_base, layers_rgb[3], stride=last_stride,
         #                                dilate=replace_stride_with_dilation[2])
-        self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
-        # self.global_avgpool = GeneralizedMeanPoolingP()
-        self.parts_avgpool = nn.AdaptiveAvgPool2d((self.part_num, 1))
         self.conv5 = DimReduceLayer(self.feature_dim_base*block_rgb.expansion, self.reduced_dim, nonlinear='relu')
 
-        # fc layers definition
+        # FC layers definition
         if fc_dims is None:
             self.fc = None
         else:
             self.fc = self._construct_fc_layer(fc_dims, 512 * block_rgb.expansion, dropout_p)
 
-        # backbone network for contour feature extraction
+        # Backbone network for contour feature extraction
         self.inplanes = 64
         self.conv1_contour = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1_contour = nn.BatchNorm2d(64)
@@ -209,22 +206,35 @@ class MyModel(nn.Module):
         self.layer4_contour = self._make_layer(block_contour, self.feature_dim_base, layers_contour[3], stride=last_stride)
         self.conv5_contour = DimReduceLayer(self.feature_dim_base*block_contour.expansion, self.reduced_dim, nonlinear='relu')
 
-        # network for contour graph modeling
-        self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 3))
+        # Network for contour graph modeling
         # self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 1))
         self.feature_dim_gnn = self.feature_dim_base * block_contour.expansion
 
-        # bnneck layers
+        # Pooling layers
+        self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
+        self.parts_avgpool = nn.AdaptiveAvgPool2d((self.part_num, 1))
+        self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 3))
+        # # gem pooling layers
+        # self.global_gempool = GeneralizedMeanPoolingP(output_size=(1, 1))
+        # self.global_gempool_contour = GeneralizedMeanPoolingP(output_size=(1, 1))
+        # self.parts_gempool = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
+        # self.parts_gempool_contour = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
+
+        # Bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
         self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
         self.bnneck_contour = nn.BatchNorm1d(self.feature_dim_base*block_contour.expansion)
         self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
 
-        # classifiers
-        self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
-        self.classifier_contour = nn.Linear(self.feature_dim_base*block_contour.expansion, num_classes, bias=False)
+        # Classifiers
+        # self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
+        # self.classifier_contour = nn.Linear(self.feature_dim_base*block_contour.expansion, num_classes, bias=False)
         # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
         # self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
+        # cricle softmax classifiers
+        self.classifier = CircleSoftmax(self.feature_dim_base*block_rgb.expansion, num_classes, scale=64, margin=0.35)
+        self.classifier_contour = CircleSoftmax(self.feature_dim_base*block_contour.expansion, num_classes, scale=64, margin=0.35)
 
         # Specify output dim for each layer
         layer_base_dims = [64, 128, 256, 512]
@@ -240,17 +250,17 @@ class MyModel(nn.Module):
 
         # Contour Hierarchical Graph modeling module
         self.contour_gnns = []
-        # self.contour_gnn_bns = []
+        self.contour_gnn_bns = []
         for idx in range(self.layer_num):
             base_dim = layer_base_dims[idx]
             gnns = nn.ModuleList([GraphConvolution(base_dim*block_contour.expansion, base_dim*block_contour.expansion, bias=True)
                                        for _ in range(self.part_num + 1)])
-            # bns_gnn = nn.ModuleList([nn.BatchNorm1d(base_dim*block_contour.expansion) for _ in range(self.part_num + 1)])
+            bns_gnn = nn.ModuleList([nn.BatchNorm1d(base_dim*block_contour.expansion) for _ in range(self.part_num + 1)])
 
             self.contour_gnns.append(gnns)
-            # self.contour_gnn_bns.append(bns_gnn)
+            self.contour_gnn_bns.append(bns_gnn)
         self.contour_gnns = nn.ModuleList(self.contour_gnns)
-        # self.contour_gnn_bns = nn.ModuleList(self.contour_gnn_bns)
+        self.contour_gnn_bns = nn.ModuleList(self.contour_gnn_bns)
 
         # Mutual information learning module
         self.global_discriminators = []
@@ -379,9 +389,9 @@ class MyModel(nn.Module):
             adj_mat_i = self.cos_sim(part_i)
             adj_mat_i = self.normalize(adj_mat_i)
             part_i_new = self.contour_gnns[layer_idx][idx](part_i, adj_mat_i)
-            # part_i_new = self.contour_gnn_bns[layer_idx][idx](part_i_new.transpose(1, 2))
-            # part_i_new = part_i_new.transpose(1, 2)
-            # part_i_new = self.relu(part_i_new)
+            part_i_new = self.contour_gnn_bns[layer_idx][idx](part_i_new.transpose(1, 2))
+            part_i_new = part_i_new.transpose(1, 2)
+            part_i_new = self.relu(part_i_new)
 
             v_local[:, idx, :] = torch.max(part_i_new, dim=1)[0]
 
@@ -389,9 +399,9 @@ class MyModel(nn.Module):
         adj_mat = self.cos_sim(v_local)
         adj_mat = self.normalize(adj_mat)
         v_global = self.contour_gnns[layer_idx][-1](v_local, adj_mat)
-        # v_global = self.contour_gnn_bns[layer_idx][-1](v_global.transpose(1, 2))
-        # v_global = v_global.transpose(1, 2)
-        # v_global = self.relu(v_global)
+        v_global = self.contour_gnn_bns[layer_idx][-1](v_global.transpose(1, 2))
+        v_global = v_global.transpose(1, 2)
+        v_global = self.relu(v_global)
         v_global = torch.max(v_global, dim=1)[0]
 
         return v_global, v_local
@@ -509,7 +519,7 @@ class MyModel(nn.Module):
 
         return ejs, ems, ejs_part, ems_part
 
-    def forward(self, x1, x2, return_featuremaps=False):
+    def forward(self, x1, x2, return_featuremaps=False, targets=None):
         f1, f2, appearance_global_features, appearance_part_features, \
         contour_global_features, contour_part_features = self._get_features(x1, x2)
 
@@ -518,15 +528,19 @@ class MyModel(nn.Module):
 
         # generate rgb features (global + part)
         v1 = self.global_avgpool(f1)
+        # v1 = self.global_gempool(f1)
         v1 = v1.view(v1.size(0), -1)
         v1_parts = self.parts_avgpool(f1)
+        # v1_parts = self.parts_gempool(f1)
         v1_parts = self.conv5(v1_parts)
         v1_parts = v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1)
 
         # generate contour features (global + part)
         v2 = self.global_avgpool(f2)
+        # v2 = self.global_gempool_contour(f2)
         v2 = v2.view(v2.size(0), -1)
         v2_parts = self.parts_avgpool(f2)
+        # v2_parts = self.parts_gempool_contour(f2)
         v2_parts = self.conv5_contour(v2_parts)
         v2_parts = v2_parts.view(v2_parts.size(0), v2_parts.size(1), -1)
 
@@ -558,14 +572,16 @@ class MyModel(nn.Module):
             return [global_feat, part_feat, concate_feat, concate_feat1, concate_contour_feat]
 
         # predict probability
-        y1 = self.classifier(v1_new)
+        # y1 = self.classifier(v1_new)
+        y1 = self.classifier(v1_new, targets)   # specify for circle softmax classifier
         # y1_parts = []
         # for idx in range(self.part_num):
         #     v1_part_i = v1_parts_new[:, :, idx]
         #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
         #     y1_part_i = self.classifiers_part[idx](v1_part_i)
         #     y1_parts.append(y1_part_i)
-        y2 = self.classifier_contour(v2_new)
+        # y2 = self.classifier_contour(v2_new)
+        y2 = self.classifier(v2_new, targets)   # specify for circle softmax classifier
         # y2_parts = []
         # for idx in range(self.part_num):
         #     v2_part_i = v2_parts_new[:, :, idx]
