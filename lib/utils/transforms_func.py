@@ -88,6 +88,7 @@ class RandomErasing(object):
                     img1[0, x1:x1 + h, y1:y1 + w] = self.mean1[0]
 
                 # Note that random erasing is applied after 'ToTensor'
+                # So the value range is [0.0, 1.0]
                 img2[0, x1:x1 + h, y1:y1 + w] = 1.0
 
                 return img1, img2

@@ -187,7 +187,10 @@ class MyModel(nn.Module):
 
         # bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
+        self.bnneck_rgb.bias.requires_grad_(False)  # no shift
         self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
+        for module in self.bnneck_rgb_part:
+            module.bias.requires_grad_(False)   # no shift
 
         # classifiers
         self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)

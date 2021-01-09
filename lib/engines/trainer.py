@@ -26,7 +26,8 @@ class Trainer(object):
         self.print_freq = print_freq
         self.save_dir = save_dir
 
-        self.criterion_x = nn.CrossEntropyLoss().cuda()
+        # self.criterion_x = nn.CrossEntropyLoss().cuda()
+        self.criterion_x = CrossEntropyLabelSmooth(num_train_pids)
         # self.criterion_x = CircleLoss(margin=0.25, gamma=128)
         self.criterion_t = TripletLoss(margin=margin)
         self.criterion_dim = DeepInfoMaxLoss(margin=0.8)
@@ -63,7 +64,7 @@ class Trainer(object):
 
             # loss for our model
             cent_items, trip_items, ejs, ems, ejs_part, ems_part = self.model(imgs, contours, targets=pids)
-
+            
             # loss for baseline model (without mutual infoamtion related loss)
             # cent_items, trip_items = self.model(imgs, contours)
 
@@ -85,7 +86,7 @@ class Trainer(object):
             loss_dim1 = self._compute_loss(self.criterion_dim, ejs, ems)
             loss_dim2 = self._compute_loss(self.criterion_dim, ejs_part, ems_part)
             loss_dim = loss_dim1 + loss_dim2
-            loss += 0.5 * loss_dim
+            loss += 0.25 * loss_dim
 
             # add apex setting
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:

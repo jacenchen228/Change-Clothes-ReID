@@ -99,6 +99,8 @@ def init_parser():
 
     parser.add_argument('--fixbase-epoch', type=int, default=0,
                         help='number of epochs to fix base layers')
+    parser.add_argument('--start-save-epoch', type=int, default=1,
+                        help='number of epochs to start to save checkpoints')
     parser.add_argument('--open-layers', type=str, nargs='+', default=None,
                         help='open specified layers for training while keeping others frozen')
     parser.add_argument('--fixed-layers', type=str, nargs='+', default=None,
@@ -192,6 +194,8 @@ def init_parser():
                         help='visualize topk ranks')
     parser.add_argument('--visactmap', action='store_true',
                         help='visualize CNN activation maps')
+    parser.add_argument('--concern-indicator', type=str, default='rank',
+                        help='specify the indicator that would be recorded the best during training')
 
     # ************************************************************
     # Miscs
@@ -289,5 +293,7 @@ def engine_kwargs(parsed_args):
         'width': parsed_args.width,
         'flag_general': parsed_args.flag_general,
         'batch_size': parsed_args.batch_size,
-        'joint_loss_weight': parsed_args.joint_loss_weight
+        'joint_loss_weight': parsed_args.joint_loss_weight,
+        'concern_indicator': parsed_args.concern_indicator,
+        'start_save_epoch': parsed_args.start_save_epoch
     }

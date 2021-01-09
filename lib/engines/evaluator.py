@@ -201,12 +201,13 @@ class Evaluator(object):
                 mAPs_dict[i].append(mAP)
 
         rank1s = list()
+        mAPs = list()
         for i in range(len(distmats_list)):
-            cmcs = cmcs_dict[i]
-            mAPs = mAPs_dict[i]
+            cmcs_i = cmcs_dict[i]
+            mAPs_i = mAPs_dict[i]
 
-            cmc_mean = np.mean(cmcs, 0)
-            mAP_mean = np.mean(mAPs)
+            cmc_mean = np.mean(cmcs_i, 0)
+            mAP_mean = np.mean(mAPs_i)
 
             print('Computing CMC and mAP with feat={} ...'.format(ID2FEAT_NAME[i]))
             print('** Results **')
@@ -216,8 +217,9 @@ class Evaluator(object):
                 print('Rank-{:<3}: {:.1%}'.format(r, cmc_mean[r - 1]))
 
             rank1s.append(cmc_mean[0])
+            mAPs.append(mAP_mean)
 
-        return rank1s
+        return rank1s, mAPs
 
     def _parse_data(self, data):
         imgs = data[0]

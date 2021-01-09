@@ -35,7 +35,7 @@ class CircleSoftmax(nn.Module):
 
         targets = F.one_hot(targets, num_classes=self._num_classes)
 
-        pred_class_logits = targets * s_p + (1.0 - targets) * s_n
+        pred_class_logits = targets.half() * s_p + (1.0 - targets.half()) * s_n
 
         return pred_class_logits
 
