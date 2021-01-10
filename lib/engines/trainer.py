@@ -64,7 +64,7 @@ class Trainer(object):
 
             # loss for our model
             cent_items, trip_items, ejs, ems, ejs_part, ems_part = self.model(imgs, contours, targets=pids)
-            
+
             # loss for baseline model (without mutual infoamtion related loss)
             # cent_items, trip_items = self.model(imgs, contours)
 

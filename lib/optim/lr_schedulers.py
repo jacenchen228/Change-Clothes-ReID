@@ -68,7 +68,12 @@ def build_lr_scheduler(optimizer, lr_scheduler, stepsize, max_epoch, gamma=0.1):
                                           last_epoch=-1)
 
     elif lr_scheduler == 'multi_warmup':
-        scheduler = WarmupMultiStepLR(optimizer, milestones=stepsize)
+        scheduler = WarmupMultiStepLR(optimizer,
+                                      milestones=stepsize,
+                                      warmup_factor=0.01,
+                                      warmup_iters=10,
+                                      warmup_method='linear',
+                                      gamma=0.1)
 
     return scheduler
 
