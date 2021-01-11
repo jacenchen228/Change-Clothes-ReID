@@ -6,11 +6,13 @@ from .dukemtmcreid import *
 from .vc_clothes import *
 from .biwi import *
 from .biwi_walking import *
+from .msmt17 import *
 
 __image_datasets = {
     'prcc': PRCC,
     'market': Market,
     'dukemtmc': DukeMTMCreID,
+    'msmt': MSMT17,
     'vc-clothes': VC_Clothes,
     'biwi': BIWI,
     'biwi_walking': BIWI_Walking

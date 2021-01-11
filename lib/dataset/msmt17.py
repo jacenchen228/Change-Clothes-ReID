@@ -7,14 +7,14 @@ import numpy as np
 from .dataset import *
 from lib.utils import read_image
 
-class Market(ImageDataset):
+class MSMT17(ImageDataset):
     """Market.
 
     Dataset statistics:
         - identities: 1501 (+1 for background).
         - images: 12936 (train) + 3368 (query) + 15913 (gallery).
     """
-    dataset_dir = 'market1501/Market-1501-v15.09.15'
+    dataset_dir = 'msmt17/MSMT17_V2'
 
     def __init__(self, root='', **kwargs):
 
@@ -42,9 +42,15 @@ class Market(ImageDataset):
     def process_dir(self, dir_path, file_path, if_test=False):
         datalist = [line for line in open(file_path, 'r').read().splitlines()]
 
+        # Specify data dir
+        sub_dir = 'train'
+        if if_test:
+            sub_dir = 'test'
+        dir_path = osp.join(dir_path, 'rgb', sub_dir)
+
         pid_sample_cnts = dict()
         for idx, item in enumerate(datalist):
-            img_rel_path, pid, _ = item.split()
+            img_rel_path, pid = item.split()
             pid = int(pid)
 
             if pid not in pid_sample_cnts:
@@ -61,8 +67,9 @@ class Market(ImageDataset):
 
         data = []
         for idx, item in enumerate(datalist):
-            img_rel_path, pid, camid = item.split()
-            pid, camid = int(pid), int(camid)
+            img_rel_path, pid = item.split()
+            pid = int(pid)
+            camid = int(osp.basename(img_rel_path).split('_')[2]) - 1  # index starts from 0
 
             img_path = osp.join(dir_path, img_rel_path)
             img = read_image(img_path, True)
