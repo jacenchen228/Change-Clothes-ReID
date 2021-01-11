@@ -18,7 +18,7 @@ from torch.autograd import Variable
 from lib.utils.DIM.model import Discriminator
 from lib.utils.gcn_layer_ori import GraphConvolution
 # from lib.utils.gcn_layer import GraphConvolution
-from lib.utils import GeneralizedMeanPoolingP
+from lib.utils import GeneralizedMeanPoolingP, GeneralizedMeanPooling
 from lib.utils import CircleSoftmax
 
 model_urls = {
@@ -215,26 +215,38 @@ class MyModel(nn.Module):
         self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
         self.parts_avgpool = nn.AdaptiveAvgPool2d((self.part_num, 1))
         self.parts_avgpool_contour = nn.AdaptiveAvgPool2d((self.part_num, 3))
-        # gem pooling layers
-        self.global_gempool = GeneralizedMeanPoolingP(output_size=(1, 1))
-        self.global_gempool_contour = GeneralizedMeanPoolingP(output_size=(1, 1))
-        self.parts_gempool = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
-        self.parts_gempool_contour = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
+        # # Gem pooling layers
+        # Version with learnable parameters
+        # self.global_gempool = GeneralizedMeanPoolingP(output_size=(1, 1))
+        # self.global_gempool_contour = GeneralizedMeanPoolingP(output_size=(1, 1))
+        # self.parts_gempool = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
+        # self.parts_gempool_contour = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
+        # Version without learnable parameters
+        # self.global_gempool = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
+        # self.global_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
+        # self.parts_gempool = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
+        # self.parts_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
 
         # Bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
+        self.bnneck_rgb.bias.requires_grad_(False)  # no shift
         self.bnneck_rgb_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
+        for module in self.bnneck_rgb_part:
+            module.bias.requires_grad_(False)   # no shift
         self.bnneck_contour = nn.BatchNorm1d(self.feature_dim_base*block_contour.expansion)
+        self.bnneck_contour.bias.requires_grad_(False)  # no shift
         self.bnneck_contour_part = nn.ModuleList([nn.BatchNorm1d(self.reduced_dim) for _ in range(self.part_num)])
+        for module in self.bnneck_contour_part:
+            module.bias.requires_grad_(False)   # no shift
 
         # Classifiers
-        # self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
-        # self.classifier_contour = nn.Linear(self.feature_dim_base*block_contour.expansion, num_classes, bias=False)
+        self.classifier = nn.Linear(self.feature_dim_base*block_rgb.expansion, num_classes, bias=False)
+        self.classifier_contour = nn.Linear(self.feature_dim_base*block_contour.expansion, num_classes, bias=False)
         # self.classifiers_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
         # self.classifiers_contour_part = nn.ModuleList([nn.Linear(self.reduced_dim, num_classes) for _ in range(self.part_num)])
         # cricle softmax classifiers
-        self.classifier = CircleSoftmax(self.feature_dim_base*block_rgb.expansion, num_classes, scale=64, margin=0.35)
-        self.classifier_contour = CircleSoftmax(self.feature_dim_base*block_contour.expansion, num_classes, scale=64, margin=0.35)
+        # self.classifier = CircleSoftmax(self.feature_dim_base*block_rgb.expansion, num_classes, scale=64, margin=0.35)
+        # self.classifier_contour = CircleSoftmax(self.feature_dim_base*block_contour.expansion, num_classes, scale=64, margin=0.35)
 
         # Specify output dim for each layer
         layer_base_dims = [64, 128, 256, 512]
@@ -527,20 +539,20 @@ class MyModel(nn.Module):
             return f1
 
         # generate rgb features (global + part)
-        # v1 = self.global_avgpool(f1)
-        v1 = self.global_gempool(f1)
+        v1 = self.global_avgpool(f1)
+        # v1 = self.global_gempool(f1)
         v1 = v1.view(v1.size(0), -1)
-        # v1_parts = self.parts_avgpool(f1)
-        v1_parts = self.parts_gempool(f1)
+        v1_parts = self.parts_avgpool(f1)
+        # v1_parts = self.parts_gempool(f1)
         v1_parts = self.conv5(v1_parts)
         v1_parts = v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1)
 
         # generate contour features (global + part)
-        # v2 = self.global_avgpool(f2)
-        v2 = self.global_gempool_contour(f2)
+        v2 = self.global_avgpool(f2)
+        # v2 = self.global_gempool_contour(f2)
         v2 = v2.view(v2.size(0), -1)
-        # v2_parts = self.parts_avgpool(f2)
-        v2_parts = self.parts_gempool_contour(f2)
+        v2_parts = self.parts_avgpool(f2)
+        # v2_parts = self.parts_gempool_contour(f2)
         v2_parts = self.conv5_contour(v2_parts)
         v2_parts = v2_parts.view(v2_parts.size(0), v2_parts.size(1), -1)
 
@@ -572,16 +584,16 @@ class MyModel(nn.Module):
             return [global_feat, part_feat, concate_feat, concate_feat1, concate_contour_feat]
 
         # predict probability
-        # y1 = self.classifier(v1_new)
-        y1 = self.classifier(v1_new, targets)   # specify for circle softmax classifier
+        y1 = self.classifier(v1_new)
+        # y1 = self.classifier(v1_new, targets)   # specify for circle softmax classifier
         # y1_parts = []
         # for idx in range(self.part_num):
         #     v1_part_i = v1_parts_new[:, :, idx]
         #     v1_part_i = v1_part_i.view(v1_part_i.size(0), -1)
         #     y1_part_i = self.classifiers_part[idx](v1_part_i)
         #     y1_parts.append(y1_part_i)
-        # y2 = self.classifier_contour(v2_new)
-        y2 = self.classifier(v2_new, targets)   # specify for circle softmax classifier
+        y2 = self.classifier_contour(v2_new)
+        # y2 = self.classifier(v2_new, targets)   # specify for circle softmax classifier
         # y2_parts = []
         # for idx in range(self.part_num):
         #     v2_part_i = v2_parts_new[:, :, idx]

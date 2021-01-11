@@ -86,7 +86,7 @@ class Trainer(object):
             loss_dim1 = self._compute_loss(self.criterion_dim, ejs, ems)
             loss_dim2 = self._compute_loss(self.criterion_dim, ejs_part, ems_part)
             loss_dim = loss_dim1 + loss_dim2
-            loss += 0.25 * loss_dim
+            loss += 0.1 * loss_dim
 
             # add apex setting
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
