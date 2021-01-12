@@ -7,13 +7,14 @@ from torch import nn
 
 from lib.utils import save_checkpoint, visactmap
 from .trainer import Trainer
-from .evaluator import Evaluator, ID2FEAT_NAME
-from .evaluatorGeneral import EvaluatorGeneral
-
+from .evaluator import Evaluator
+from .evaluatorMarket import EvaluatorMarket
+from .evaluatorLTCC import EvaluatorLTCC
 
 class Engine(object):
     def __init__(self, trainloader, queryloader, galleryloader, model, optimizer, lr_scheduler,
-                 flag_general=False, concern_indicator='rank', start_save_epoch=1, **kwargs):
+                 eval_protocol='prcc', concern_indicator='rank', start_save_epoch=1, start_eval_epoch=1,
+                 **kwargs):
         self.trainloader = trainloader
         self.queryloader = queryloader
         self.galleryloader = galleryloader
@@ -23,12 +24,19 @@ class Engine(object):
         self.model = model
         self.concern_indicator = concern_indicator
         self.start_save_epoch = start_save_epoch
+        self.start_eval_epoch = start_eval_epoch
 
         self.trainer = Trainer(trainloader, model, optimizer, lr_scheduler, **kwargs)
-        if flag_general:
-            self.evaluator = EvaluatorGeneral(queryloader, galleryloader, model, **kwargs)
+        if eval_protocol == 'market':
+            self.evaluator = EvaluatorMarket(queryloader, galleryloader, model, **kwargs)
+            from .evaluatorMarket import ID2FEAT_NAME
+        elif eval_protocol == 'ltcc':
+            self.evaluator = EvaluatorLTCC(queryloader, galleryloader, model, **kwargs)
+            from .evaluatorLTCC import ID2FEAT_NAME
         else:
             self.evaluator = Evaluator(queryloader, galleryloader, model, **kwargs)
+            from .evaluator import ID2FEAT_NAME
+        self.ID2FEAT_NAME = ID2FEAT_NAME
 
     def run(self, max_epoch, test_only, eval_freq, if_visactmap, save_dir, **kwargs):
 
@@ -46,12 +54,12 @@ class Engine(object):
         max_indicator_global = 0
         max_epoch_global = 0
         max_feat_global = 0
-        max_indicators, max_epochs = [0]*len(ID2FEAT_NAME), [0]*len(ID2FEAT_NAME)
+        max_indicators, max_epochs = [0]*len(self.ID2FEAT_NAME), [0]*len(self.ID2FEAT_NAME)
         for epoch in range(0, max_epoch):
             self.trainer.train(epoch, **kwargs)
 
             if eval_freq > 0 and (epoch + 1) % eval_freq == 0 and (
-                    epoch + 1) != max_epoch:
+                    epoch + 1) != max_epoch and (epoch + 1) >= self.start_eval_epoch:
 
                 rank1s, mAPs = self.evaluator.evaluate()
 
@@ -74,9 +82,9 @@ class Engine(object):
                             self._save_checkpoint(epoch, save_dir)
                             save_flag = False
                 for i, (max_indicator_i, max_epoch_i) in enumerate(zip(max_indicators, max_epochs)):
-                    print('Maximum {} with Feature-{} is {} in the Epoch {}'.format(self.concern_indicator, ID2FEAT_NAME[i], max_indicator_i, max_epoch_i))
+                    print('Maximum {} with Feature-{} is {} in the Epoch {}'.format(self.concern_indicator, self.ID2FEAT_NAME[i], max_indicator_i, max_epoch_i))
                 print('Maximum {} globally is {} in the Epoch {} with Feature-{}'.format(
-                    self.concern_indicator, max_indicator_global, max_epoch_global, ID2FEAT_NAME[max_feat_global]))
+                    self.concern_indicator, max_indicator_global, max_epoch_global, self.ID2FEAT_NAME[max_feat_global]))
                 print(save_dir)
 
         if max_epoch > 0:
@@ -101,9 +109,9 @@ class Engine(object):
                         self._save_checkpoint(max_epoch, save_dir)
                         save_flag = False
             for i, (max_indicator_i, max_epoch_i) in enumerate(zip(max_indicators, max_epochs)):
-                print('Maximum {} with Feature-{} is {} in the Epoch {}'.format(self.concern_indicator, ID2FEAT_NAME[i], max_indicator_i, max_epoch_i))
+                print('Maximum {} with Feature-{} is {} in the Epoch {}'.format(self.concern_indicator, self.ID2FEAT_NAME[i], max_indicator_i, max_epoch_i))
             print('Maximum {} globally is {} in the Epoch {} with Feature-{}'.format(
-                self.concern_indicator, max_indicator_global, max_epoch_global, ID2FEAT_NAME[max_feat_global]))
+                self.concern_indicator, max_indicator_global, max_epoch_global, self.ID2FEAT_NAME[max_feat_global]))
             print(save_dir)
 
     def _save_checkpoint(self, epoch, save_dir, is_best=False):

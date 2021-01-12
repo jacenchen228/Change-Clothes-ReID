@@ -222,10 +222,10 @@ class MyModel(nn.Module):
         # self.parts_gempool = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
         # self.parts_gempool_contour = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
         # Version without learnable parameters
-        # self.global_gempool = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
-        # self.global_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
-        # self.parts_gempool = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
-        # self.parts_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
+        self.global_gempool = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
+        self.global_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
+        self.parts_gempool = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
+        self.parts_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
 
         # Bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
@@ -539,20 +539,20 @@ class MyModel(nn.Module):
             return f1
 
         # generate rgb features (global + part)
-        v1 = self.global_avgpool(f1)
-        # v1 = self.global_gempool(f1)
+        # v1 = self.global_avgpool(f1)
+        v1 = self.global_gempool(f1)
         v1 = v1.view(v1.size(0), -1)
-        v1_parts = self.parts_avgpool(f1)
-        # v1_parts = self.parts_gempool(f1)
+        # v1_parts = self.parts_avgpool(f1)
+        v1_parts = self.parts_gempool(f1)
         v1_parts = self.conv5(v1_parts)
         v1_parts = v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1)
 
         # generate contour features (global + part)
-        v2 = self.global_avgpool(f2)
-        # v2 = self.global_gempool_contour(f2)
+        # v2 = self.global_avgpool(f2)
+        v2 = self.global_gempool_contour(f2)
         v2 = v2.view(v2.size(0), -1)
-        v2_parts = self.parts_avgpool(f2)
-        # v2_parts = self.parts_gempool_contour(f2)
+        # v2_parts = self.parts_avgpool(f2)
+        v2_parts = self.parts_gempool_contour(f2)
         v2_parts = self.conv5_contour(v2_parts)
         v2_parts = v2_parts.view(v2_parts.size(0), v2_parts.size(1), -1)
 

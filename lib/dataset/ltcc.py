@@ -7,14 +7,14 @@ import numpy as np
 from .dataset import *
 from lib.utils import read_image
 
-class MSMT17(ImageDataset):
+class LTCC(ImageDataset):
     """Market.
 
     Dataset statistics:
         - identities: 1501 (+1 for background).
         - images: 12936 (train) + 3368 (query) + 15913 (gallery).
     """
-    dataset_dir = 'msmt17/MSMT17_V2'
+    dataset_dir = 'LTCC'
 
     def __init__(self, root='', **kwargs):
 
@@ -37,20 +37,14 @@ class MSMT17(ImageDataset):
         query = self.process_dir(self.dataset_dir, self.querylist_path, if_test=True)
         gallery = self.process_dir(self.dataset_dir, self.gallerylist_path, if_test=True)
 
-        super(MSMT17, self).__init__(train, query, gallery)
+        super(LTCC, self).__init__(train, query, gallery)
 
     def process_dir(self, dir_path, file_path, if_test=False):
         datalist = [line for line in open(file_path, 'r').read().splitlines()]
 
-        # Specify data dir
-        sub_dir = 'train'
-        if if_test:
-            sub_dir = 'test'
-        dir_path = osp.join(dir_path, 'rgb', sub_dir)
-
         pid_sample_cnts = dict()
         for idx, item in enumerate(datalist):
-            img_rel_path, pid = item.split()
+            img_rel_path, pid, _ = item.split()
             pid = int(pid)
 
             if pid not in pid_sample_cnts:
@@ -67,20 +61,24 @@ class MSMT17(ImageDataset):
 
         data = []
         for idx, item in enumerate(datalist):
-            img_rel_path, pid = item.split()
-            pid = int(pid)
-            camid = int(osp.basename(img_rel_path).split('_')[2]) - 1  # index starts from 0
+            img_rel_path, pid, camid = item.split()
+            pid, camid = int(pid), int(camid)
+            clothid = int(osp.basename(img_rel_path).split('_')[1])
 
             img_path = osp.join(dir_path, img_rel_path)
             img = read_image(img_path, True)
-            contour_path = img_path.replace('/rgb/', '/contour/')
-            contour_img = read_image(contour_path)
+            contour_path = img_path.replace('/rgb/', '/contour/').replace('.png', '.jpg')
+
+            try:
+                contour_img = read_image(contour_path)
+            except Exception:
+                continue
 
             if not if_test:
                 if pid in pid2label:
                     pid = pid2label[pid]
-                    data.append((img_path, pid, camid, img, contour_img))
+                    data.append((img_path, pid, camid, clothid, img, contour_img))
             else:
-                data.append((img_path, pid, camid, img, contour_img))
+                data.append((img_path, pid, camid, clothid, img, contour_img))
 
         return data

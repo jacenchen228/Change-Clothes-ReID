@@ -8,7 +8,7 @@ from torch.nn import functional as F
 
 from lib.utils import AverageMeter
 from lib.utils import re_ranking, visualize_ranked_results
-from lib.metrics import compute_distance_matrix, evaluate_rank
+from lib.metrics import compute_distance_matrix, evaluate_rank_ltcc
 
 ID2FEAT_NAME = {
     0: 'global feat',
@@ -20,7 +20,7 @@ ID2FEAT_NAME = {
     6: 'feat 6'
 }
 
-class EvaluatorGeneral(object):
+class EvaluatorLTCC(object):
     def __init__(self, queryloader, galleryloader,  model, query=None, gallery=None, use_gpu=True,
                  dist_metric='euclidean', normalize_feature=False, visrank=False,
                  visrank_topk=10, save_dir='', use_metric_cuhk03=False, ranks=[1, 5, 10, 20],
@@ -46,14 +46,6 @@ class EvaluatorGeneral(object):
         self.height = height
         self.width = width
 
-        # find sample ids belonging to specific class ids for prcc protocal
-        gallery_ids = [item[1] for item in gallery] # item[1] = pid
-        self.pid2id = dict()
-        pid_unique = set(gallery_ids)
-        gallery_ids = np.array(gallery_ids)
-        for pid in pid_unique:
-            self.pid2id[pid] = np.argwhere(gallery_ids == pid)
-
     @torch.no_grad()
     def evaluate(self):
         batch_time = AverageMeter()
@@ -61,10 +53,10 @@ class EvaluatorGeneral(object):
         self.model.eval()
 
         print('Extracting features from query set ...')
-        q_pids, q_camids = [], []  # query person IDs and query camera IDs
+        q_pids, q_camids, q_clothids = [], [], []  # query person IDs, query camera IDs and cloth IDs
         qf_dict = defaultdict(list)
         for batch_idx, data in enumerate(self.queryloader):
-            imgs, contours, pids, camids = self._parse_data(data)
+            imgs, contours, pids, camids, clothids = self._parse_data(data)
 
             if self.use_gpu:
                 imgs = imgs.cuda()
@@ -94,6 +86,7 @@ class EvaluatorGeneral(object):
 
             q_pids.extend(pids)
             q_camids.extend(camids)
+            q_clothids.extend(clothids)
 
         qf_list = []
         for i in range(len(qf_dict.keys())):
@@ -106,11 +99,11 @@ class EvaluatorGeneral(object):
         print('Done, obtained {}-by-{} matrix'.format(qf.size(0), qf.size(1)))
 
         print('Extracting features from gallery set ...')
-        g_pids, g_camids = [], []  # gallery person IDs and gallery camera IDs
+        g_pids, g_camids, g_clothids = [], [], []  # gallery person IDs, gallery camera IDs and gallery cloth IDs
         gf_dict = defaultdict(list)
         end = time.time()
         for batch_idx, data in enumerate(self.galleryloader):
-            imgs, contours, pids, camids = self._parse_data(data)
+            imgs, contours, pids, camids, clothids = self._parse_data(data)
             if self.use_gpu:
                 imgs = imgs.cuda()
                 contours = contours.cuda()
@@ -139,6 +132,7 @@ class EvaluatorGeneral(object):
 
             g_pids.extend(pids)
             g_camids.extend(camids)
+            g_clothids.extend(clothids)
 
         gf_list = []
         for i in range(len(gf_dict.keys())):
@@ -187,13 +181,14 @@ class EvaluatorGeneral(object):
                     topk=self.visrank_topk
                 )
 
-            cmc, mAP = evaluate_rank(
+            cmc, mAP = evaluate_rank_ltcc(
                 distmat,
                 q_pids,
                 g_pids,
                 q_camids,
                 g_camids,
-                use_metric_cuhk03=self.use_metric_cuhk03
+                q_clothids,
+                g_clothids
             )
 
             cmcs_dict[i].append(cmc)
@@ -226,8 +221,9 @@ class EvaluatorGeneral(object):
 
         pids = data[2]
         camids = data[3]
+        clothids = data[5]
 
-        return imgs, contours, pids, camids
+        return imgs, contours, pids, camids, clothids
 
     def _extract_features(self, input1, input2):
         self.model.eval()

@@ -34,14 +34,14 @@ cpdef evaluate_cy(distmat, q_pids, g_pids, q_camids, g_camids, max_rank, use_met
 
 cpdef eval_cuhk03_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
                      long[:]q_camids, long[:]g_camids, long max_rank):
-    
+
     cdef long num_q = distmat.shape[0]
     cdef long num_g = distmat.shape[1]
 
     if num_g < max_rank:
         max_rank = num_g
         print('Note: number of gallery samples is quite small, got {}'.format(num_g))
-    
+
     cdef:
         long num_repeats = 10
         long[:,:] indices = np.argsort(distmat, axis=1)
@@ -66,7 +66,7 @@ cpdef eval_cuhk03_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
         float num_rel
         float[:] tmp_cmc = np.zeros(num_g, dtype=np.float32)
         float tmp_cmc_sum
-    
+
     for q_idx in range(num_q):
         # get query pid and camid
         q_pid = q_pids[q_idx]
@@ -86,7 +86,7 @@ cpdef eval_cuhk03_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
                 num_g_real += 1
                 if matches[q_idx][g_idx] > 1e-31:
                     meet_condition = 1
-        
+
         if not meet_condition:
             # this condition is true when query identity does not appear in gallery
             continue
@@ -99,7 +99,7 @@ cpdef eval_cuhk03_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
         cmc = np.zeros(max_rank, dtype=np.float32)
         for _ in range(num_repeats):
             mask = np.zeros(num_g_real, dtype=np.int64)
-            
+
             for _, idxs in g_pids_dict.items():
                 # randomly sample one image for each gallery person
                 rnd_idx = np.random.choice(idxs)
@@ -120,7 +120,7 @@ cpdef eval_cuhk03_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
 
             for rank_idx in range(max_rank):
                 cmc[rank_idx] += masked_cmc[rank_idx] / num_repeats
-        
+
         for rank_idx in range(max_rank):
             all_cmc[q_idx, rank_idx] = cmc[rank_idx]
         # compute average precision
@@ -142,7 +142,7 @@ cpdef eval_cuhk03_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
         for q_idx in range(num_q):
             avg_cmc[rank_idx] += all_cmc[q_idx, rank_idx]
         avg_cmc[rank_idx] /= num_valid_q
-    
+
     cdef float mAP = 0
     for q_idx in range(num_q):
         mAP += all_AP[q_idx]
@@ -153,14 +153,14 @@ cpdef eval_cuhk03_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
 
 cpdef eval_market1501_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
                          long[:]q_camids, long[:]g_camids, long max_rank):
-    
+
     cdef long num_q = distmat.shape[0]
     cdef long num_g = distmat.shape[1]
 
     if num_g < max_rank:
         max_rank = num_g
         print('Note: number of gallery samples is quite small, got {}'.format(num_g))
-    
+
     cdef:
         long[:,:] indices = np.argsort(distmat, axis=1)
         long[:,:] matches = (np.asarray(g_pids)[np.asarray(indices)] == np.asarray(q_pids)[:, np.newaxis]).astype(np.int64)
@@ -181,7 +181,7 @@ cpdef eval_market1501_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
         float num_rel
         float[:] tmp_cmc = np.zeros(num_g, dtype=np.float32)
         float tmp_cmc_sum
-    
+
     for q_idx in range(num_q):
         # get query pid and camid
         q_pid = q_pids[q_idx]
@@ -192,7 +192,7 @@ cpdef eval_market1501_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids,
             order[g_idx] = indices[q_idx, g_idx]
         num_g_real = 0
         meet_condition = 0
-        
+
         for g_idx in range(num_g):
             if (g_pids[order[g_idx]] != q_pid) or (g_camids[order[g_idx]] != q_camid):
                 raw_cmc[num_g_real] = matches[q_idx][g_idx]

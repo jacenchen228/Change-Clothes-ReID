@@ -13,7 +13,7 @@ def init_parser():
                         choices=['softmax', 'softmax_compare', 'triplet', 'triplet_compare', 'triplet_baseline',
                                  'triplet_feat_split', 'triplet_dml'],
                         help='methodology')
-    parser.add_argument('--flag-general', action='store_true', help='if use general protocal')
+    parser.add_argument('--eval-protocol', type=str, default='prcc', help='choose the evaluation protocal')
 
     # ************************************************************
     # Datasets
@@ -92,13 +92,13 @@ def init_parser():
     # ************************************************************
     parser.add_argument('--max-epoch', type=int, default=60,
                         help='maximum epochs to run')
-    parser.add_argument('--start-epoch', type=int, default=0,
-                        help='manual epoch number (useful when restart)')
     parser.add_argument('--batch-size', type=int, default=32,
                         help='batch size')
 
     parser.add_argument('--fixbase-epoch', type=int, default=0,
                         help='number of epochs to fix base layers')
+    parser.add_argument('--start-eval-epoch', type=int, default=1,
+                        help='which epoch start to evaluate during training')
     parser.add_argument('--start-save-epoch', type=int, default=1,
                         help='number of epochs to start to save checkpoints')
     parser.add_argument('--open-layers', type=str, nargs='+', default=None,
@@ -271,11 +271,10 @@ def engine_kwargs(parsed_args):
     return {
         'save_dir': parsed_args.save_dir,
         'max_epoch': parsed_args.max_epoch,
-        'start_epoch': parsed_args.start_epoch,
         'fixbase_epoch': parsed_args.fixbase_epoch,
         'open_layers': parsed_args.open_layers,
         'fixed_layers': parsed_args.fixed_layers,
-        'start_eval': parsed_args.start_eval,
+        'start_eval_epoch': parsed_args.start_eval_epoch,
         'eval_freq': parsed_args.eval_freq,
         'test_only': parsed_args.evaluate,
         'print_freq': parsed_args.print_freq,
@@ -291,7 +290,7 @@ def engine_kwargs(parsed_args):
         'label_smooth': parsed_args.label_smooth,
         'height': parsed_args.height,   # visualize ranklist
         'width': parsed_args.width,
-        'flag_general': parsed_args.flag_general,
+        'eval_protocol': parsed_args.eval_protocol,
         'batch_size': parsed_args.batch_size,
         'joint_loss_weight': parsed_args.joint_loss_weight,
         'concern_indicator': parsed_args.concern_indicator,

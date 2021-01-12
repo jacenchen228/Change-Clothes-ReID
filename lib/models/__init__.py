@@ -10,6 +10,7 @@ from .dim_gcn_new import *
 from .dim_gcn_multi import *
 from .gcn_model import *
 from .dim_model import *
+from .pcb import *
 
 __model_factory = {
     'resnet50': resnet50,
@@ -24,7 +25,9 @@ __model_factory = {
     'dim_gcn_new50': dim_gcn_new50,
     'dim_gcn_new34': dim_gcn_new34,
     'dim_gcn_multi50': dim_gcn_multi50,
-    'dim_gcn_multi34': dim_gcn_multi34
+    'dim_gcn_multi34': dim_gcn_multi34,
+    'pcb_p4': pcb_p4,
+    'pcb_p6': pcb_p6
 }
 
 

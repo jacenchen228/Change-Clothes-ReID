@@ -168,7 +168,8 @@ class MyModel(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        # self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -188,6 +189,7 @@ class MyModel(nn.Module):
         # bnneck layers
         # self.bnneck_rgb = nn.BatchNorm1d(reduce_dim)
         self.bnneck_rgb = nn.BatchNorm1d(512*block_rgb.expansion)
+        self.bnneck_rgb.bias.requires_grad_(False)  # no shift
 
         # classifiers
         # self.classifier = nn.Linear(reduce_dim, num_classes, bias=False)
@@ -289,7 +291,8 @@ class MyModel(nn.Module):
     def forward(self, x1, x2, return_featuremaps=False):
         # x2 here is useless, serving as placeholder
 
-        f1 = self.featuremaps(x1)
+        # f1 = self.featuremaps(x1)
+        f1 = self.featuremaps(x2)
 
         if return_featuremaps:
             return f1
