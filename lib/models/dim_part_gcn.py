@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dim_gcn_multi50', 'dim_gcn_multi34']
+__all__ = ['dim_part_gcn50', 'dim_part_gcn34']
 
 import random
 
@@ -275,7 +275,7 @@ class MyModel(nn.Module):
         self.contour_gnn_bns = nn.ModuleList(self.contour_gnn_bns)
 
         # Mutual information learning module
-        self.global_discriminators = []
+        # self.global_discriminators = []
         self.part_discriminators = []
         for idx in range(self.layer_num):
             global_dims = global_discriminator_layers[idx]
@@ -283,14 +283,14 @@ class MyModel(nn.Module):
             base_dim = layer_base_dims[idx]
             part_reduced_dim = part_reduced_dims[idx]
 
-            global_discriminator = Discriminator(in_dim1=base_dim*block_rgb.expansion, in_dim2=base_dim*block_contour.expansion,
-                                                  layers_dim=global_dims)
+            # global_discriminator = Discriminator(in_dim1=base_dim*block_rgb.expansion, in_dim2=base_dim*block_contour.expansion,
+            #                                       layers_dim=global_dims)
             part_discriminators = nn.ModuleList([Discriminator(part_reduced_dim, in_dim2=part_reduced_dim, layers_dim=part_dims)
                                                  for _ in range(self.part_num)])
 
-            self.global_discriminators.append(global_discriminator)
+            # self.global_discriminators.append(global_discriminator)
             self.part_discriminators.append(part_discriminators)
-        self.global_discriminators = nn.ModuleList(self.global_discriminators)
+        # self.global_discriminators = nn.ModuleList(self.global_discriminators)
         self.part_discriminators = nn.ModuleList(self.part_discriminators)
 
         # for name, module in self.named_modules():
@@ -420,9 +420,9 @@ class MyModel(nn.Module):
 
     def _get_features(self, x1, x2):
         # To store intermedia features
-        appearance_global_features = []
+        # appearance_global_features = []
         appearance_part_features = []
-        contour_global_features = []
+        # contour_global_features = []
         contour_part_features = []
 
         # Feature extraction for rgb images
@@ -433,22 +433,22 @@ class MyModel(nn.Module):
 
         # Layer 1 -> Layer 4
         x1 = self.layer1(x1)
-        appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
+        # appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[0](
             self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer2(x1)
-        appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
+        # appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[1](
             self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer3(x1)
-        appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
+        # appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[2](
             self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer4(x1)
-        appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
+        # appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
         appearance_part_features.append(self.appearance_reduced_layers[3](
             self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
@@ -461,51 +461,47 @@ class MyModel(nn.Module):
         # Layer1 -> Layer4
         x2 = self.layer1_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=0)
-        contour_global_features.append(contour_global)
+        # contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[0](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer2_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=1)
-        contour_global_features.append(contour_global)
+        # contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[1](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer3_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=2)
-        contour_global_features.append(contour_global)
+        # contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[2](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer4_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=3)
-        contour_global_features.append(contour_global)
+        # contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[3](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
-        return x1, x2, appearance_global_features, appearance_part_features, \
-               contour_global_features, contour_part_features
+        return x1, x2, appearance_part_features, contour_part_features
 
-    def deep_info_max(self, global_features1, part_features1, global_features2, part_features2):
+    def deep_info_max(self, part_features1, part_features2):
         # To store mutual information items
-        ejs = []
-        ems = []
         ejs_part = []
         ems_part = []
 
-        for layer_idx, (v1, v1_parts, v2, v2_parts) in enumerate(zip(global_features1, part_features1,
-                                                               global_features2, part_features2)):
-            # Calculate global mutual information
-            random_idxs = list(range(v2.size(0)))
-            random.shuffle(random_idxs)
-            v2_shuffle = v2[random_idxs]
+        for layer_idx, (v1_parts, v2_parts) in enumerate(zip(part_features1, part_features2)):
+            # # Calculate global mutual information
+            # random_idxs = list(range(v2.size(0)))
+            # random.shuffle(random_idxs)
+            # v2_shuffle = v2[random_idxs]
 
-            ej = self.global_discriminators[layer_idx](v1, v2)
-            em = self.global_discriminators[layer_idx](v1, v2_shuffle)
+            # ej = self.global_discriminators[layer_idx](v1, v2)
+            # em = self.global_discriminators[layer_idx](v1, v2_shuffle)
 
             # Calculate local mutual information
             ej_part = []
@@ -524,16 +520,14 @@ class MyModel(nn.Module):
                 ej_part.append(ej_part_i)
                 em_part.append(em_part_i)
 
-            ejs.append(ej)
-            ems.append(em)
             ejs_part.append(ej_part)
             ems_part.append(em_part)
 
-        return ejs, ems, ejs_part, ems_part
+        return ejs_part, ems_part
 
     def forward(self, x1, x2, return_featuremaps=False, targets=None):
-        f1, f2, appearance_global_features, appearance_part_features, \
-        contour_global_features, contour_part_features = self._get_features(x1, x2)
+        f1, f2, appearance_part_features, contour_part_features\
+            = self._get_features(x1, x2)
 
         if return_featuremaps:
             return f1
@@ -602,13 +596,11 @@ class MyModel(nn.Module):
         #     y2_parts.append(y2_part_i)
 
         # calcuate mutual information
-        ejs, ems, ej_parts, em_parts = self.deep_info_max(appearance_global_features, appearance_part_features,
-                                                      contour_global_features, contour_part_features)
+        ej_parts, em_parts = self.deep_info_max(appearance_part_features, contour_part_features)
 
         # return [y1, y1_parts, y2, y2_parts], [v1, v2, v1_parts, v2_parts], \
         #        ej, em, ej_part, em_part
-        return [y1, y2], [v1, v2, v1_parts_new, v2_parts_new], \
-               ejs, ems, ej_parts, em_parts
+        return [y1, y2], [v1, v2, v1_parts_new, v2_parts_new], ej_parts, em_parts
 
 
 def init_pretrained_weights(model, model_url):
@@ -687,7 +679,7 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url1))
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
-def dim_gcn_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_part_gcn50(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
@@ -707,7 +699,7 @@ def dim_gcn_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
     return model
 
 
-def dim_gcn_multi34(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_part_gcn34(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,

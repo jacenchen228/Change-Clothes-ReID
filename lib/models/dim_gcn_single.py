@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dim_gcn_multi50', 'dim_gcn_multi34']
+__all__ = ['dim_gcn_single50', 'dim_gcn_single34']
 
 import random
 
@@ -163,7 +163,7 @@ class MyModel(nn.Module):
         self.dilation = 1
         self.part_num = part_num
         self.part_weight = part_weight
-        self.layer_num = 4  # for resnet, layer_num = 4
+        self.layer_num = 1  # for resnet, layer_num = 4
         self.reduced_dim = 256
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -249,10 +249,10 @@ class MyModel(nn.Module):
         # self.classifier_contour = CircleSoftmax(self.feature_dim_base*block_contour.expansion, num_classes, scale=64, margin=0.35)
 
         # Specify output dim for each layer
-        layer_base_dims = [64, 128, 256, 512]
-        part_reduced_dims = [64, 128, 256, 512]
-        global_discriminator_layers = [[256, 64, 16], [512, 128, 32], [1024, 256, 64, 16], [2048, 512, 128, 32]]
-        part_discriminator_layers = [[64, 16], [128, 32], [256, 64, 16], [512, 128, 32]]
+        layer_base_dims = [512]
+        part_reduced_dims = [512]
+        global_discriminator_layers = [[2048, 512, 128, 32]]
+        part_discriminator_layers = [[512, 128, 32]]
 
         # Part reduced layers
         self.appearance_reduced_layers = nn.ModuleList([DimReduceLayer(layer_base_dims[idx]*block_rgb.expansion,
@@ -433,23 +433,14 @@ class MyModel(nn.Module):
 
         # Layer 1 -> Layer 4
         x1 = self.layer1(x1)
-        appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
-        appearance_part_features.append(self.appearance_reduced_layers[0](
-            self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer2(x1)
-        appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
-        appearance_part_features.append(self.appearance_reduced_layers[1](
-            self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer3(x1)
-        appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
-        appearance_part_features.append(self.appearance_reduced_layers[2](
-            self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         x1 = self.layer4(x1)
         appearance_global_features.append(self.global_avgpool(x1).view(x1.size(0), -1))
-        appearance_part_features.append(self.appearance_reduced_layers[3](
+        appearance_part_features.append(self.appearance_reduced_layers[0](
             self.parts_avgpool(x1)).view(x1.size(0), -1, self.part_num))
 
         # Feature extraction for contour images
@@ -460,31 +451,16 @@ class MyModel(nn.Module):
 
         # Layer1 -> Layer4
         x2 = self.layer1_contour(x2)
+
+        x2 = self.layer2_contour(x2)
+
+        x2 = self.layer3_contour(x2)
+
+        x2 = self.layer4_contour(x2)
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=0)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[0](contour_part)
-        contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
-
-        x2 = self.layer2_contour(x2)
-        contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=1)
-        contour_global_features.append(contour_global)
-        contour_part = contour_part.transpose(1, 2).unsqueeze(3)
-        contour_part = self.contour_reduced_layers[1](contour_part)
-        contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
-
-        x2 = self.layer3_contour(x2)
-        contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=2)
-        contour_global_features.append(contour_global)
-        contour_part = contour_part.transpose(1, 2).unsqueeze(3)
-        contour_part = self.contour_reduced_layers[2](contour_part)
-        contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
-
-        x2 = self.layer4_contour(x2)
-        contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=3)
-        contour_global_features.append(contour_global)
-        contour_part = contour_part.transpose(1, 2).unsqueeze(3)
-        contour_part = self.contour_reduced_layers[3](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         return x1, x2, appearance_global_features, appearance_part_features, \
@@ -687,7 +663,7 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url1))
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
-def dim_gcn_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcn_single50(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
@@ -707,7 +683,7 @@ def dim_gcn_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
     return model
 
 
-def dim_gcn_multi34(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcn_single34(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,

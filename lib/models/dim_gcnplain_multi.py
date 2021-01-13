@@ -4,7 +4,7 @@ Code source: https://github.com/pytorch/vision
 from __future__ import absolute_import
 from __future__ import division
 
-__all__ = ['dim_gcn_multi50', 'dim_gcn_multi34']
+__all__ = ['dim_gcnplain_multi50', 'dim_gcnplain_multi34']
 
 import random
 
@@ -266,7 +266,7 @@ class MyModel(nn.Module):
         for idx in range(self.layer_num):
             base_dim = layer_base_dims[idx]
             gnns = nn.ModuleList([GraphConvolution(base_dim*block_contour.expansion, base_dim*block_contour.expansion, bias=True)
-                                       for _ in range(self.part_num + 1)])
+                                       for _ in range(1)])  # only on layer for global aggregation
             bns_gnn = nn.ModuleList([nn.BatchNorm1d(base_dim*block_contour.expansion) for _ in range(self.part_num + 1)])
 
             self.contour_gnns.append(gnns)
@@ -392,26 +392,19 @@ class MyModel(nn.Module):
 
         return adj_mat
 
-    def hierarchical_graph_modeling(self, v, layer_idx):
-        # fine-grained scale graph learning
+    def plain_graph_modeling(self, v, layer_idx):
+        v = self.parts_avgpool(v)
         v = v.permute(0, 2, 3, 1)
         v_local = torch.zeros(v.shape[0], v.shape[1], v.shape[3]).cuda()
         for idx in range(v.shape[1]):
             part_i = v[:, idx, ...]
-            adj_mat_i = self.cos_sim(part_i)
-            adj_mat_i = self.normalize(adj_mat_i)
-            part_i_new = self.contour_gnns[layer_idx][idx](part_i, adj_mat_i)
-            part_i_new = self.contour_gnn_bns[layer_idx][idx](part_i_new.transpose(1, 2))
-            part_i_new = part_i_new.transpose(1, 2)
-            part_i_new = self.relu(part_i_new)
-
-            v_local[:, idx, :] = torch.max(part_i_new, dim=1)[0]
+            v_local[:, idx, :] = part_i.view(part_i.size(0), -1)
 
         # coarse-grained scale graph learning
         adj_mat = self.cos_sim(v_local)
         adj_mat = self.normalize(adj_mat)
-        v_global = self.contour_gnns[layer_idx][-1](v_local, adj_mat)
-        v_global = self.contour_gnn_bns[layer_idx][-1](v_global.transpose(1, 2))
+        v_global = self.contour_gnns[layer_idx][0](v_local, adj_mat)
+        v_global = self.contour_gnn_bns[layer_idx][0](v_global.transpose(1, 2))
         v_global = v_global.transpose(1, 2)
         v_global = self.relu(v_global)
         v_global = torch.max(v_global, dim=1)[0]
@@ -460,28 +453,28 @@ class MyModel(nn.Module):
 
         # Layer1 -> Layer4
         x2 = self.layer1_contour(x2)
-        contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=0)
+        contour_global, contour_part = self.plain_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=0)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[0](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer2_contour(x2)
-        contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=1)
+        contour_global, contour_part = self.plain_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=1)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[1](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer3_contour(x2)
-        contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=2)
+        contour_global, contour_part = self.plain_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=2)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[2](contour_part)
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         x2 = self.layer4_contour(x2)
-        contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=3)
+        contour_global, contour_part = self.plain_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=3)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
         contour_part = self.contour_reduced_layers[3](contour_part)
@@ -687,7 +680,7 @@ def init_pretrained_weights_hybrid(model, model_url1, model_url2):
     print("Initialized model with pretrained weights from {}".format(model_url1))
     print("Initialized model with pretrained weights from {}".format(model_url2))
 
-def dim_gcn_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcnplain_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,
@@ -707,7 +700,7 @@ def dim_gcn_multi50(num_classes, loss='softmax', pretrained=True, **kwargs):
     return model
 
 
-def dim_gcn_multi34(num_classes, loss='softmax', pretrained=True, **kwargs):
+def dim_gcnplain_multi34(num_classes, loss='softmax', pretrained=True, **kwargs):
     model = MyModel(
         num_classes=num_classes,
         loss=loss,

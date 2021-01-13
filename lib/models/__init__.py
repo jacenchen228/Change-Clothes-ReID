@@ -8,8 +8,13 @@ from .baseline import *
 from .dim_gcn_model import *
 from .dim_gcn_new import *
 from .dim_gcn_multi import *
+from .dim_global_gcn import *
+from .dim_part_gcn import *
+from .dim_gcnplain_multi import *
+from .dim_gcn_single import *
 from .gcn_model import *
 from .dim_model import *
+from .dim_multi import *
 from .pcb import *
 
 __model_factory = {
@@ -26,6 +31,11 @@ __model_factory = {
     'dim_gcn_new34': dim_gcn_new34,
     'dim_gcn_multi50': dim_gcn_multi50,
     'dim_gcn_multi34': dim_gcn_multi34,
+    'dim_global_gcn50': dim_global_gcn50,
+    'dim_part_gcn50': dim_part_gcn50,
+    'dim_gcnplain_multi50': dim_gcnplain_multi50,
+    'dim_gcn_single50': dim_gcn_single50,
+    'dim_multi50': dim_multi50,
     'pcb_p4': pcb_p4,
     'pcb_p6': pcb_p6
 }
