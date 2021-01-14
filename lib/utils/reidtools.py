@@ -194,16 +194,16 @@ def visactmap(testloader, model, save_dir, width, height, print_freq, use_gpu, *
     for batch_idx, data in enumerate(testloader):
         # imgs, paths = data[0], data[3]
         # imgs, paths = data[0], data[3]
-        imgs, paths, segments = data[0], data[3], data[6]
+        imgs, contours, paths = data[0], data[1], data[4]
 
         if use_gpu:
             imgs = imgs.cuda()
-            segments = segments.cuda()
+            contours = contours.cuda()
 
         # forward to get convolutional feature maps
         try:
             # outputs = model(segments, imgs, return_featuremaps=True)
-            outputs = model(segments, imgs, return_featuremaps=True)
+            outputs = model(imgs, contours, return_featuremaps=True)
         except TypeError:
             raise TypeError('forward() got unexpected keyword argument "return_featuremaps". ' \
                             'Please add return_featuremaps as an input argument to forward(). When ' \
@@ -231,7 +231,7 @@ def visactmap(testloader, model, save_dir, width, height, print_freq, use_gpu, *
 
             # imname = osp.basename(osp.splitext(path)[0])
             path = path.split('/')
-            imname = path[-2] + '_' + path[-1]
+            imname = osp.splitext(path[-2] + '_' + path[-1])[0]
 
             # RGB image
             img = imgs[j, ...]
@@ -252,15 +252,16 @@ def visactmap(testloader, model, save_dir, width, height, print_freq, use_gpu, *
             overlapped[overlapped > 255] = 255
             overlapped = overlapped.astype(np.uint8)
 
-            # save images in a single figure (add white spacing between images)
-            # from left to right: original image, activation map, overlapped image
-            grid_img = 255 * np.ones((height, 3 * width + 2 * GRID_SPACING, 3), dtype=np.uint8)
-            grid_img[:, :width, :] = img_np[:, :, ::-1]
-            grid_img[:, width + GRID_SPACING: 2 * width + GRID_SPACING, :] = am
-            grid_img[:, 2 * width + 2 * GRID_SPACING:, :] = overlapped
+            # # save images in a single figure (add white spacing between images)
+            # # from left to right: original image, activation map, overlapped image
+            # grid_img = 255 * np.ones((height, 3 * width + 2 * GRID_SPACING, 3), dtype=np.uint8)
+            # grid_img[:, :width, :] = img_np[:, :, ::-1]
+            # grid_img[:, width + GRID_SPACING: 2 * width + GRID_SPACING, :] = am
+            # grid_img[:, 2 * width + 2 * GRID_SPACING:, :] = overlapped
 
-            # cv2.imwrite(osp.join(actmap_dir, imname + '.jpg'), grid_img)
-            cv2.imwrite(osp.join(actmap_dir, imname), grid_img)
+            cv2.imwrite(osp.join(actmap_dir, imname+'_ori.jpg'), img_np[:, :, ::-1])
+            cv2.imwrite(osp.join(actmap_dir, imname + '_am.jpg'), am)
+            cv2.imwrite(osp.join(actmap_dir, imname + '_overlap.jpg'), overlapped)
 
         if (batch_idx + 1) % print_freq == 0:
             print('- done batch {}/{}'.format(batch_idx + 1, len(testloader)))

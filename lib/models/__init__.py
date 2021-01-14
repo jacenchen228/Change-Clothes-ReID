@@ -12,6 +12,7 @@ from .dim_global_gcn import *
 from .dim_part_gcn import *
 from .dim_gcnplain_multi import *
 from .dim_gcn_single import *
+from .dim_multigcn_multi import *
 from .gcn_model import *
 from .dim_model import *
 from .dim_multi import *
@@ -31,6 +32,7 @@ __model_factory = {
     'dim_gcn_new34': dim_gcn_new34,
     'dim_gcn_multi50': dim_gcn_multi50,
     'dim_gcn_multi34': dim_gcn_multi34,
+    'dim_multigcn_multi50': dim_multigcn_multi50,
     'dim_global_gcn50': dim_global_gcn50,
     'dim_part_gcn50': dim_part_gcn50,
     'dim_gcnplain_multi50': dim_gcnplain_multi50,
