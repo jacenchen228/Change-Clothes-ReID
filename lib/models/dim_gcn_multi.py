@@ -222,10 +222,10 @@ class MyModel(nn.Module):
         # self.parts_gempool = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
         # self.parts_gempool_contour = GeneralizedMeanPoolingP(output_size=(self.part_num, 1))
         # Version without learnable parameters
-        # self.global_gempool = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
-        # self.global_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
-        # self.parts_gempool = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
-        # self.parts_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
+        self.global_gempool = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
+        self.global_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(1, 1))
+        self.parts_gempool = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
+        self.parts_gempool_contour = GeneralizedMeanPooling(norm=3, output_size=(self.part_num, 1))
 
         # Bnneck layers
         self.bnneck_rgb = nn.BatchNorm1d(self.feature_dim_base*block_rgb.expansion)
@@ -460,6 +460,7 @@ class MyModel(nn.Module):
 
         # Layer1 -> Layer4
         x2 = self.layer1_contour(x2)
+        feature_map_vis = x2
         contour_global, contour_part = self.hierarchical_graph_modeling(self.parts_avgpool_contour(x2), layer_idx=0)
         contour_global_features.append(contour_global)
         contour_part = contour_part.transpose(1, 2).unsqueeze(3)
@@ -488,7 +489,7 @@ class MyModel(nn.Module):
         contour_part_features.append(contour_part.view(x2.size(0), -1, self.part_num))
 
         return x1, x2, appearance_global_features, appearance_part_features, \
-               contour_global_features, contour_part_features
+               contour_global_features, contour_part_features, feature_map_vis
 
     def deep_info_max(self, global_features1, part_features1, global_features2, part_features2):
         # To store mutual information items
@@ -533,10 +534,10 @@ class MyModel(nn.Module):
 
     def forward(self, x1, x2, return_featuremaps=False, targets=None):
         f1, f2, appearance_global_features, appearance_part_features, \
-        contour_global_features, contour_part_features = self._get_features(x1, x2)
+        contour_global_features, contour_part_features, feature_map_vis = self._get_features(x1, x2)
 
         if return_featuremaps:
-            return f1
+            return feature_map_vis
 
         # generate rgb features (global + part)
         v1 = self.global_avgpool(f1)

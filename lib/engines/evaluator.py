@@ -175,7 +175,7 @@ class Evaluator(object):
                 g_pids_selected = g_pids[selected_ids]
                 g_camids_selected = g_camids[selected_ids]
 
-                if self.visrank and (ID2FEAT_NAME[i] == 'feat 0' or ID2FEAT_NAME[i] == 'feat 2' or ID2FEAT_NAME[i] == 'feat 4') and test_i == 0:
+                if self.visrank and (ID2FEAT_NAME[i] == 'concate feat without normalizing global and part') and test_i == 0:
                     # contains tuples of (img_path(s), contour_path(s), pid, camid)
                     gallery_selected = gallery[selected_ids]
                     visualize_ranked_results(

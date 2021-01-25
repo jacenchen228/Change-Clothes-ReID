@@ -17,7 +17,7 @@ from .tools import mkdir_if_missing
 
 GRID_SPACING = 10
 QUERY_EXTRA_SPACING = 90
-BW = 5 # border width
+BW = 8 # border width
 GREEN = (1, 215, 117)
 RED = (111, 107, 241)
 PAD_SPACING = 5
@@ -85,6 +85,7 @@ def visualize_ranked_results(distmat, dataset, data_type, width=128, height=256,
         # grid_img = 255 * np.ones((2*height+GRID_SPACING, num_cols*width+(topk-1)*GRID_SPACING+QUERY_EXTRA_SPACING, 3), dtype=np.uint8)
         grid_img = 255 * np.ones((height, num_cols*width+(topk-1)*GRID_SPACING+QUERY_EXTRA_SPACING, 3), dtype=np.uint8)
 
+        idx_str = str(qpid) + '\n'
         if data_type == 'image':
             qimg = cv2.imread(qimg_path)
             qimg = Image.fromarray(cv2.cvtColor(qimg, cv2.COLOR_BGR2RGB))
@@ -92,8 +93,7 @@ def visualize_ranked_results(distmat, dataset, data_type, width=128, height=256,
 
             qimg = cv2.resize(qimg, (width, height))
             qimg = cv2.copyMakeBorder(qimg, BW, BW, BW, BW, cv2.BORDER_CONSTANT, value=(0, 0, 0))
-            qimg = cv2.resize(qimg, (
-            width, height))  # resize twice to ensure that the border width is consistent across images
+            qimg = cv2.resize(qimg, (width, height))  # resize twice to ensure that the border width is consistent across images
 
             # qsegment = cv2.imread(qsegment_path)
             # qsegment = Image.fromarray(cv2.cvtColor(qsegment, cv2.COLOR_BGR2RGB))
@@ -119,6 +119,7 @@ def visualize_ranked_results(distmat, dataset, data_type, width=128, height=256,
             gpid, gcamid = int(gpid), int(gcamid)
             invalid = (qpid == gpid) & (qcamid == gcamid)
 
+            idx_str = idx_str + str(gpid) + ' '
             if not invalid:
                 matched = gpid == qpid
                 if data_type == 'image':
@@ -129,6 +130,7 @@ def visualize_ranked_results(distmat, dataset, data_type, width=128, height=256,
 
                     gimg = cv2.resize(gimg, (width, height))
                     gimg = cv2.copyMakeBorder(gimg, BW, BW, BW, BW, cv2.BORDER_CONSTANT, value=border_color)
+                    # gimg = cv2.copyMakeBorder(gimg, BW, BW, BW, BW, 1, value=border_color)
                     gimg = cv2.resize(gimg, (width, height))
 
                     # gsegment = cv2.imread(gsegment_path)
@@ -161,6 +163,9 @@ def visualize_ranked_results(distmat, dataset, data_type, width=128, height=256,
             os.makedirs(dir_path)
         cv2.imwrite(osp.join(dir_path, imname + '.jpg'), grid_img)
 
+        with open(osp.join(dir_path, imname + '.txt'), 'w') as fp:
+            fp.write(idx_str)
+
         # imname = osp.basename(osp.splitext(qimg_path)[0])
         # cv2.imwrite(osp.join(save_dir, imname+'.jpg'), grid_img)
 
@@ -187,7 +192,7 @@ def visactmap(testloader, model, save_dir, width, height, print_freq, use_gpu, *
     imagenet_std = [0.229, 0.224, 0.225]
 
     # original images and activation maps are saved individually
-    actmap_dir = osp.join(save_dir, 'actmap')
+    actmap_dir = osp.join(save_dir, 'actmap_layer2')
     mkdir_if_missing(actmap_dir)
     print('Visualizing activation maps ...')
 

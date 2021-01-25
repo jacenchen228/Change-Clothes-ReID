@@ -284,19 +284,20 @@ class MyModel(nn.Module):
         x1 = self.maxpool(x1)
         x1 = self.layer1(x1)
         x1 = self.layer2(x1)
+        feature_map_vis = x1
         x1 = self.layer3(x1)
         x1 = self.layer4(x1)
 
-        return x1
+        return x1, feature_map_vis
 
     def forward(self, x1, x2, return_featuremaps=False):
         # x2 here is useless, serving as placeholder
 
-        f1 = self.featuremaps(x1)
+        f1, feature_map_vis = self.featuremaps(x1)
         # f1 = self.featuremaps(x2)
 
         if return_featuremaps:
-            return f1
+            return feature_map_vis
 
         v1 = self.global_avgpool(f1)
         v1 = v1.view(v1.size(0), -1)

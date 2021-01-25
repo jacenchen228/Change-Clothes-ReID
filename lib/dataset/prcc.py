@@ -80,12 +80,12 @@ class PRCC(ImageDataset):
             # load data into memory
             data.append((img_path, pid, camid, img, contour_img))
 
-        # if not if_test:
-        #     dataset_len = len(data)
-        #     sample_factor = 0.8
-        #     sample_num = int(sample_factor * dataset_len)
-        #
-        #     random.shuffle(data)
-        #     data = data[:sample_num]
+        if not if_test:
+            dataset_len = len(data)
+            sample_factor = 0.5
+            sample_num = int(sample_factor * dataset_len)
+
+            random.shuffle(data)
+            data = data[:sample_num]
 
         return data
