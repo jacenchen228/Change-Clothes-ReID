@@ -9,6 +9,8 @@ from .transforms_func import (
     Random2DTranslation, RandomErasing
 )
 
+import torchvision.transforms as T
+
 
 class ColorAugmentation(object):
     """Randomly alters the intensities of RGB channels.
@@ -62,6 +64,8 @@ def build_transforms(
         transforms='random_flip',
         norm_mean1=[0.485, 0.456, 0.406],
         norm_std1=[0.229, 0.224, 0.225],
+        # norm_mean1=[0.485*255, 0.456*255, 0.406*255],
+        # norm_std1=[0.229*255, 0.224*255, 0.225*255],
         norm_mean2=[0.0],
         norm_std2=[1.0],
         **kwargs):
@@ -86,17 +90,20 @@ def build_transforms(
     if norm_mean1 is None or norm_std1 is None:
         norm_mean1 = [0.485, 0.456, 0.406]  # imagenet mean
         norm_std1 = [0.229, 0.224, 0.225]  # imagenet std
+    # if norm_mean1 is None or norm_std1 is None:
+    #     norm_mean1 = [0.485*255, 0.456*255, 0.406*255]  # imagenet mean
+    #     norm_std1 = [0.229*255, 0.224*255, 0.225*255]  # imagenet std
     normalize = Normalize(mean1=norm_mean1, std1=norm_std1, mean2=norm_mean2, std2=norm_std2)
 
     print('Building train transforms ...')
     transform_tr = []
 
+    print('+ resize to {}x{}'.format(height, width))
+    transform_tr += [Resize((height, width), interpolation=3)]
+
     if 'random_flip' in transforms:
         print('+ random flip')
-        transform_tr += [RandomHorizontalFlip()]
-
-    print('+ resize to {}x{}'.format(height, width))
-    transform_tr += [Resize((height, width))]
+        transform_tr += [RandomHorizontalFlip(p=0.5)]
 
     if 'pad' in transforms:
         transform_tr += [Pad(10)]
@@ -117,18 +124,21 @@ def build_transforms(
     if 'color_jitter' in transforms:
         print('+ color jitter')
         transform_tr += [
-            ColorJitter(brightness=0.2, contrast=0.15, saturation=0, hue=0)
+            ColorJitter(brightness=0.15, contrast=0.15, saturation=0.1, hue=0.1)
         ]
 
     print('+ to torch tensor of range [0, 1]')
+    # print('+ to torch tensor of range [0, 255.0]')
     transform_tr += [ToTensor()]
-
-    print('+ normalization (mean1={}, std1={}, mean2={}, std2={})'.format(norm_mean1, norm_std1, norm_mean2, norm_std2))
-    transform_tr += [normalize]
 
     if 'random_erase' in transforms:
         print('+ random erase')
-        transform_tr += [RandomErasing(mean1=norm_mean1)]
+        # transform_tr += [RandomErasing(mean1=norm_mean1)]
+        transform_tr += [T.RandomErasing(p=0.5, value=[0.485, 0.456, 0.406])]
+        # transform_tr += [T.RandomErasing(p=0.5, value=[0.485*255.0, 0.456*255.0, 0.406*255.0])]
+
+    print('+ normalization (mean1={}, std1={}, mean2={}, std2={})'.format(norm_mean1, norm_std1, norm_mean2, norm_std2))
+    transform_tr += [normalize]
 
     transform_tr = Compose(transform_tr)
 
@@ -138,7 +148,7 @@ def build_transforms(
     print('+ normalization (mean1={}, std1={}, mean2={}, std2={})'.format(norm_mean1, norm_std1, norm_mean2, norm_std2))
 
     transform_te = Compose([
-        Resize((height, width)),
+        Resize((height, width), interpolation=3),
         ToTensor(),
         normalize,
     ])

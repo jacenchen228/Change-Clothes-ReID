@@ -70,8 +70,8 @@ cpdef eval_market1501_cy(float[:,:] distmat, long[:] q_pids, long[:]g_pids, long
         meet_condition = 0
 
         for g_idx in range(num_g):
-            if (g_pids[order[g_idx]] != q_pid) or (g_camids[order[g_idx]] != q_camid) \
-                    or (g_clothids[order[g_idx]] != q_clothid):
+            if (g_pids[order[g_idx]] != q_pid) or (g_camids[order[g_idx]] != q_camid
+                and g_clothids[order[g_idx]] != q_clothid):
                 raw_cmc[num_g_real] = matches[q_idx][g_idx]
                 num_g_real += 1
                 if matches[q_idx][g_idx] > 1e-31:

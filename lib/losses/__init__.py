@@ -7,6 +7,7 @@ from .hard_mine_triplet_loss import TripletLoss
 from .deep_info_max_loss import DeepInfoMaxLoss
 from .div_loss import AdvDivLoss
 from .circle_loss import CircleLoss
+from .fast_losses import FastCrossEntropyLoss, FastTripletLoss
 
 
 def DeepSupervision(criterion, xs, y):

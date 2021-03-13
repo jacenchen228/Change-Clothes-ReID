@@ -13,11 +13,13 @@ from lib.losses import *
 class Trainer(object):
     def __init__(self, trainloader, model, optimizer, scheduler,
                  max_epoch, num_train_pids, use_gpu=True, fixbase_epoch=0, open_layers=None,
-                 print_freq=10, margin=0.3, label_smooth=True, save_dir=None, **kwargs):
-        self.trainloader = trainloader
+                 print_freq=10, margin=0.3, label_smooth=True, save_dir=None, lr_scheduler_warmup=None, **kwargs):
+        # self.trainloader = trainloader
+        self.trainloader = iter(trainloader)
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.scheduler_warmup = lr_scheduler_warmup
         self.use_gpu = use_gpu
         self.train_len = len(self.trainloader)
         self.max_epoch = max_epoch
@@ -27,12 +29,23 @@ class Trainer(object):
         self.save_dir = save_dir
 
         # self.criterion_x = nn.CrossEntropyLoss().cuda()
-        self.criterion_x = CrossEntropyLabelSmooth(num_train_pids)
-        # self.criterion_x = CircleLoss(margin=0.25, gamma=128)
-        self.criterion_t = TripletLoss(margin=margin)
-        self.criterion_dim = DeepInfoMaxLoss(margin=0.8)
+        # self.criterion_x = CrossEntropyLabelSmooth(num_train_pids, epsilon=0.1)
+        self.criterion_x = FastCrossEntropyLoss(num_train_pids, epsilon=0.1, alpha=0.2)
 
-    def train(self, epoch, **kwargs):
+        # self.criterion_x = CircleLoss(margin=0.25, gamma=128)
+        # self.criterion_t = TripletLoss(margin=0.0, normalize_feature=False)
+        self.criterion_t = FastTripletLoss(margin=0.0, hard_mining=False, norm_feat=False)
+        self.criterion_dim = DeepInfoMaxLoss(margin=0.8)
+        # self.criterion_kl = torch.nn.KLDivLoss(reduction='batchmean')
+
+        # Parameters for warmup scheduler
+        self.warmup_iter = 2000
+        self.iter = 0
+
+        # Iteration number for each epoch
+        self.iter_per_epoch = len(self.trainloader)
+
+    def train(self, epoch, trainloader_aug=None, **kwargs):
         losses = AverageMeter()
         losses_trip = AverageMeter()
         losses_cent = AverageMeter()
@@ -43,13 +56,21 @@ class Trainer(object):
 
         self.model.train()
         if (epoch + 1) <= self.fixbase_epoch and self.open_layers is not None:
+            trainloader = trainloader_aug
             print('* Only train {} (epoch: {}/{})'.format(self.open_layers, epoch + 1, self.fixbase_epoch))
             open_specified_layers(self.model, self.open_layers)
         else:
+            trainloader = self.trainloader
             open_all_layers(self.model)
 
         end = time.time()
-        for batch_idx, data in enumerate(self.trainloader):
+        # for batch_idx, data in enumerate(self.trainloader):
+        for batch_idx in range(self.iter_per_epoch):
+            data = next(trainloader)
+
+            # global iteration counter
+            self.iter += 1
+
             data_time.update(time.time() - end)
 
             # self.scheduler.step(epoch + float(batch_idx) / len(self.trainloader))
@@ -63,12 +84,12 @@ class Trainer(object):
             self.optimizer.zero_grad()
 
             # loss for our model
-            cent_items, trip_items, ejs, ems, ejs_part, ems_part = self.model(imgs, contours, targets=pids)
+            # cent_items, trip_items, ejs, ems, ejs_part, ems_part = self.model(imgs, contours, targets=pids)
 
             # cent_items, trip_items, ejs, ems = self.model(imgs, contours, targets=pids)
 
             # loss for baseline model (without mutual infoamtion related loss)
-            # cent_items, trip_items = self.model(imgs, contours)
+            cent_items, trip_items = self.model(imgs, contours)
 
             losses_cent_list = list()
             for item in cent_items:
@@ -84,17 +105,21 @@ class Trainer(object):
 
             loss = loss_cent_sum + loss_trip_sum
 
-            # calculate dim loss
-            loss_dim1 = self._compute_loss(self.criterion_dim, ejs, ems)
-            loss_dim2 = self._compute_loss(self.criterion_dim, ejs_part, ems_part)
-            loss_dim = loss_dim1 + loss_dim2
-            # loss_dim = loss_dim1
-            loss += 0.1 * loss_dim
+            # # calculate dim loss
+            # loss_dim1 = self._compute_loss(self.criterion_dim, ejs, ems)
+            # loss_dim2 = self._compute_loss(self.criterion_dim, ejs_part, ems_part)
+            # loss_dim = loss_dim1 + loss_dim2
+            # # loss_dim = loss_dim1
+            # loss += 0.05 * loss_dim
 
-            # add apex setting
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            # loss.backward()
+            # # add apex setting
+            # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+            #     scaled_loss.backward()
+            loss.backward()
+
+            # for name, params in self.model.named_parameters():
+            #     if 'classifier' in name:
+            #         print('Loss Grad Mean of Params {} is {}'.format(name, torch.max(torch.abs(params.grad))))
 
             self.optimizer.step()
 
@@ -103,7 +128,7 @@ class Trainer(object):
             losses.update(loss.item(), pids.size(0))
             losses_cent.update(loss_cent_sum.item()/len(cent_items), pids.size(0))
             losses_trip.update(loss_trip_sum.item()/len(trip_items), pids.size(0))
-            losses_dim.update(loss_dim.item(), pids.size(0))
+            # losses_dim.update(loss_dim.item(), pids.size(0))
 
             if (batch_idx) % self.print_freq == 0:
                 # estimate remaining time
@@ -134,7 +159,11 @@ class Trainer(object):
 
             end = time.time()
 
-        self.scheduler.step()
+            if self.iter < self.warmup_iter:
+                self.scheduler_warmup.step()
+
+        if self.iter >= self.warmup_iter:
+            self.scheduler.step()
 
     def _parse_data(self, data):
         imgs = data[0]

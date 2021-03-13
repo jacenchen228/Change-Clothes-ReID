@@ -2,9 +2,11 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import warnings
+import math
 
 import torch
 import torch.nn as nn
+from torch.optim.optimizer import Optimizer
 
 AVAI_OPTIMS = ['adam', 'amsgrad', 'sgd', 'rmsprop']
 
@@ -14,12 +16,14 @@ def build_optimizer(
         optim='adam',
         lr=0.0003,
         weight_decay=5e-04,
+        lr_bias_factor=1.0,
+        weight_decay_bias=0.0,
         momentum=0.9,
         sgd_dampening=0,
         sgd_nesterov=False,
         rmsprop_alpha=0.99,
         adam_beta1=0.9,
-        adam_beta2=0.99,
+        adam_beta2=0.999,
         staged_lr=False,
         new_layers='',
         base_lr_mult=1,
@@ -105,7 +109,19 @@ def build_optimizer(
         ]
 
     else:
-        param_groups = model.parameters()
+        param_groups = []
+        for key, value in model.named_parameters():
+            if not value.requires_grad: continue
+
+            lr_tmp = lr
+            weight_decay_tmp = weight_decay
+
+            if "bias" in key:
+                lr_tmp = lr_tmp * lr_bias_factor
+                weight_decay_tmp = weight_decay_bias
+
+            param_groups += [{"name": key, "params": [value], "lr": lr_tmp, "weight_decay": weight_decay_tmp}]
+        # param_groups = model.parameters()
 
     if optim == 'adam':
         optimizer = torch.optim.Adam(
@@ -144,3 +160,4 @@ def build_optimizer(
         )
 
     return optimizer
+

@@ -7,7 +7,7 @@ import numpy as np
 from .dataset import *
 from lib.utils import read_image
 
-class LTCC(ImageDataset):
+class LTCC_Change(ImageDataset):
     """Market.
 
     Dataset statistics:
@@ -24,6 +24,11 @@ class LTCC(ImageDataset):
         self.querylist_path = osp.join(self.dataset_dir, 'list/query.txt')
         self.gallerylist_path = osp.join(self.dataset_dir, 'list/gallery.txt')
 
+        # Find those ids with changing clothing in test set
+        change_ids_test_path = osp.join(self.dataset_dir, 'info/cloth-change_id_test.txt')
+        change_ids_test = open(change_ids_test_path, 'r').read().splitlines()
+        self.change_ids_test = [int(item) for item in change_ids_test]
+
         required_files = [
             self.dataset_dir,
             self.trainlist_path,
@@ -37,7 +42,7 @@ class LTCC(ImageDataset):
         query = self.process_dir(self.dataset_dir, self.querylist_path, if_test=True)
         gallery = self.process_dir(self.dataset_dir, self.gallerylist_path, if_test=True)
 
-        super(LTCC, self).__init__(train, query, gallery)
+        super(LTCC_Change, self).__init__(train, query, gallery)
 
     def process_dir(self, dir_path, file_path, if_test=False):
         datalist = [line for line in open(file_path, 'r').read().splitlines()]
@@ -63,22 +68,26 @@ class LTCC(ImageDataset):
         for idx, item in enumerate(datalist):
             img_rel_path, pid, camid = item.split()
             pid, camid = int(pid), int(camid)
+
+            if pid not in self.change_ids_test:
+                continue
+
             clothid = int(osp.basename(img_rel_path).split('_')[1])
 
             img_path = osp.join(dir_path, img_rel_path)
-            # img = read_image(img_path, True)
+            img = read_image(img_path, True)
             contour_path = img_path.replace('/rgb/', '/contour/').replace('.png', '.jpg')
 
-            if not osp.exists(contour_path):
+            try:
+                contour_img = read_image(contour_path)
+            except Exception:
                 continue
 
             if not if_test:
                 if pid in pid2label:
                     pid = pid2label[pid]
-                    # data.append((img_path, pid, camid, clothid, img, contour_img))
-                    data.append((img_path, contour_path, pid, camid, clothid))
+                    data.append((img_path, pid, camid, clothid, img, contour_img))
             else:
-                # data.append((img_path, pid, camid, clothid, img, contour_img))
-                data.append((img_path, contour_path, pid, camid, clothid))
+                data.append((img_path, pid, camid, clothid, img, contour_img))
 
         return data

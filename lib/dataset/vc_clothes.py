@@ -62,7 +62,7 @@ class VC_Clothes(ImageDataset):
             if not if_test: pid = pid2label[pid]
 
             if opt == 'gallery':
-                if camid == 4:
+                if camid == 2:
                     data.append((img_path, pid, camid, img, contour_img))
             elif opt == 'query':
                 if camid == 3:

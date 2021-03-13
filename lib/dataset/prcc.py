@@ -10,6 +10,7 @@ from lib.utils import read_image
 
 ROOM2CAMID = {
     'A': 0,
+    'A_large_view': 0,
     'B': 1,
     'C': 2
 }
@@ -25,7 +26,7 @@ class PRCC(ImageDataset):
     """
     dataset_dir = 'prcc'
 
-    def __init__(self, root='', **kwargs):
+    def __init__(self, root='', aug=False, **kwargs):
 
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = osp.join(self.root, self.dataset_dir)
@@ -45,9 +46,11 @@ class PRCC(ImageDataset):
         query = self.process_dir(self.dataset_dir, self.querylist_path, if_test=True)
         gallery = self.process_dir(self.dataset_dir, self.gallerylist_path, if_test=True)
 
+        self.train_aug = self.process_dir(self.dataset_dir, self.trainlist_path, if_aug=True)
+
         super(PRCC, self).__init__(train, query, gallery)
 
-    def process_dir(self, dir_path, file_path, if_test=False):
+    def process_dir(self, dir_path, file_path, if_test=False, if_aug=False):
         datalist = [line for line in open(file_path, 'r').read().splitlines()]
 
         pid_container = set()
@@ -64,9 +67,9 @@ class PRCC(ImageDataset):
             img_rel_path, pid = item.split()
 
             img_path = osp.join(dir_path, img_rel_path)
-            img = read_image(img_path, True)
+            # img = read_image(img_path, True)
             contour_path = img_path.replace('/rgb/', '/contour/')
-            contour_img = read_image(contour_path)
+            # contour_img = read_image(contour_path)
 
             pid = int(pid)
             if if_test:
@@ -78,14 +81,30 @@ class PRCC(ImageDataset):
             if not if_test: pid = pid2label[pid]
 
             # load data into memory
-            data.append((img_path, pid, camid, img, contour_img))
+            # data.append((img_path, pid, camid, img, contour_img))
 
-        if not if_test:
-            dataset_len = len(data)
-            sample_factor = 0.5
-            sample_num = int(sample_factor * dataset_len)
+            data.append((img_path, contour_path, pid, camid))
 
-            random.shuffle(data)
-            data = data[:sample_num]
+            # # process augmented data item
+            # if not if_test and if_aug:
+            #     aug_img_dir = osp.dirname(img_rel_path)
+            #     aug_base_name = osp.basename(img_rel_path)
+            #     aug_img_name, postfix = osp.splitext(aug_base_name)
+            #     for i in range(10):
+            #         aug_name = aug_img_name + '_' + str(i) + postfix
+            #         # aug_dir = osp.join(dir_path, 'aug3_hue0.1', img_dir)
+            #         # aug_dir = osp.join(dir_path, 'aug2', img_dir)
+            #         aug_dir = osp.join(dir_path, 'aug4_hue0.1sat0.1', aug_img_dir)
+            #         aug_path = osp.join(aug_dir, aug_name)
+            #         aug_img = read_image(aug_path, True)
+            #         data.append((aug_path, pid, camid, aug_img, contour_img))
+
+        # if not if_test:
+        #     dataset_len = len(data)
+        #     sample_factor = 0.2
+        #     sample_num = int(sample_factor * dataset_len)
+        #
+        #     random.shuffle(data)
+        #     data = data[:sample_num]
 
         return data

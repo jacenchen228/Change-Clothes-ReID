@@ -15,7 +15,8 @@ ID2FEAT_NAME = {
     0: 'global feat',
     1: 'part feat',
     2: 'concate feat',
-    3: 'concate feat without normalizing global and part',
+    # 3: 'concate feat without normalizing global and part',
+    3: 'concate contour feat',
     4: 'concate contour feat',
     5: 'feat 5',
     6: 'feat 6'

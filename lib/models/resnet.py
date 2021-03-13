@@ -7,6 +7,7 @@ from __future__ import division
 __all__ = ['resnet50']
 
 import random
+import math
 
 import torch
 from torch import nn
@@ -14,6 +15,8 @@ from torch.nn import functional as F
 import torchvision
 import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
+
+from lib.utils import GeneralizedMeanPooling, Non_local
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -168,8 +171,8 @@ class MyModel(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        # self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
-        self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        # self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -181,31 +184,43 @@ class MyModel(nn.Module):
         self.layer4 = self._make_layer(block_rgb, self.feature_dim_base, layers_rgb[3], stride=last_stride,
                                        dilate=replace_stride_with_dilation[2])
         self.inplanes = 256 * block_rgb.expansion
+
+        # self._init_params()
+        self.random_init()
+
         self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.global_gempool = GeneralizedMeanPooling()
         # self.global_maxpool = nn.AdaptiveMaxPool2d((1, 1))
         # reduce_dim = 768
         # self.embedding_layer = nn.Linear(4096, reduce_dim, bias=False)
 
         # bnneck layers
         # self.bnneck_rgb = nn.BatchNorm1d(reduce_dim)
-        self.bnneck_rgb = nn.BatchNorm1d(512*block_rgb.expansion)
+        # self.bnneck_rgb = nn.BatchNorm1d(512*block_rgb.expansion)
+        self.bnneck_rgb = nn.BatchNorm2d(512*block_rgb.expansion)
         self.bnneck_rgb.bias.requires_grad_(False)  # no shift
 
         # classifiers
         # self.classifier = nn.Linear(reduce_dim, num_classes, bias=False)
         self.classifier = nn.Linear(512*block_rgb.expansion, num_classes, bias=False)
 
-        self._init_params()
+        self.bnneck_rgb.apply(self._weights_init_kaiming)
+        self.classifier.apply(self._weights_init_classifier)
+
+        # Build non-local blocks
+        # non_layers = [0, 2, 3, 0]
+        # self._build_nonlocal(layers_rgb, non_layers, 'BN')
+        self.NL_1_idx = self.NL_2_idx = self.NL_3_idx = self.NL_4_idx = []
 
         # Zero-initialize the last BN in each residual branch,
         # so that the residual branch starts with zeros, and each residual block behaves like an identity.
         # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
-        if zero_init_residual:
-            for m in self.modules():
-                if isinstance(m, Bottleneck):
-                    nn.init.constant_(m.bn3.weight, 0)
-                elif isinstance(m, BasicBlock):
-                    nn.init.constant_(m.bn2.weight, 0)
+        # if zero_init_residual:
+        #     for m in self.modules():
+        #         if isinstance(m, Bottleneck):
+        #             nn.init.constant_(m.bn3.weight, 0)
+        #         elif isinstance(m, BasicBlock):
+        #             nn.init.constant_(m.bn2.weight, 0)
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
@@ -259,10 +274,24 @@ class MyModel(nn.Module):
 
         return nn.Sequential(*layers)
 
+    def _build_nonlocal(self, layers, non_layers, bn_norm):
+        self.NL_1 = nn.ModuleList(
+            [Non_local(256, bn_norm) for _ in range(non_layers[0])])
+        self.NL_1_idx = sorted([layers[0] - (i + 1) for i in range(non_layers[0])])
+        self.NL_2 = nn.ModuleList(
+            [Non_local(512, bn_norm) for _ in range(non_layers[1])])
+        self.NL_2_idx = sorted([layers[1] - (i + 1) for i in range(non_layers[1])])
+        self.NL_3 = nn.ModuleList(
+            [Non_local(1024, bn_norm) for _ in range(non_layers[2])])
+        self.NL_3_idx = sorted([layers[2] - (i + 1) for i in range(non_layers[2])])
+        self.NL_4 = nn.ModuleList(
+            [Non_local(2048, bn_norm) for _ in range(non_layers[3])])
+        self.NL_4_idx = sorted([layers[3] - (i + 1) for i in range(non_layers[3])])
+
     def _init_params(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
@@ -276,29 +305,104 @@ class MyModel(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
+    def random_init(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                nn.init.normal_(m.weight, 0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _weights_init_kaiming(self, m):
+        classname = m.__class__.__name__
+        if classname.find('Linear') != -1:
+            nn.init.normal_(m.weight, 0, 0.01)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+        elif classname.find('Conv') != -1:
+            nn.init.kaiming_normal_(m.weight, mode='fan_out')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+        elif classname.find('BatchNorm') != -1:
+            if m.affine:
+                # nn.init.normal_(m.weight, 1.0, 0.02)
+                nn.init.constant_(m.weight, 1.0)
+                nn.init.constant_(m.bias, 0.0)
+
+    def _weights_init_classifier(self, m):
+        classname = m.__class__.__name__
+        if classname.find('Linear') != -1:
+            nn.init.normal_(m.weight, std=0.001)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+
     def featuremaps(self, x1):
         x1 = self.conv1(x1)
         x1 = self.bn1(x1)
         x1 = self.relu(x1)
         x1 = self.maxpool(x1)
-        x1 = self.layer1(x1)
-        x1 = self.layer2(x1)
-        x1 = self.layer3(x1)
-        x1 = self.layer4(x1)
+        
+        NL1_counter = 0
+        if len(self.NL_1_idx) == 0:
+            self.NL_1_idx = [-1]
+        for i in range(len(self.layer1)):
+            x1 = self.layer1[i](x1)
+            if i == self.NL_1_idx[NL1_counter]:
+                _, C, H, W = x1.shape
+                x1 = self.NL_1[NL1_counter](x1)
+                NL1_counter += 1
+        # Layer 2
+        NL2_counter = 0
+        if len(self.NL_2_idx) == 0:
+            self.NL_2_idx = [-1]
+        for i in range(len(self.layer2)):
+            x1 = self.layer2[i](x1)
+            if i == self.NL_2_idx[NL2_counter]:
+                _, C, H, W = x1.shape
+                x1 = self.NL_2[NL2_counter](x1)
+                NL2_counter += 1
+        # Layer 3
+        NL3_counter = 0
+        if len(self.NL_3_idx) == 0:
+            self.NL_3_idx = [-1]
+        for i in range(len(self.layer3)):
+            x1 = self.layer3[i](x1)
+            if i == self.NL_3_idx[NL3_counter]:
+                _, C, H, W = x1.shape
+                x1 = self.NL_3[NL3_counter](x1)
+                NL3_counter += 1
+        # Layer 4
+        NL4_counter = 0
+        if len(self.NL_4_idx) == 0:
+            self.NL_4_idx = [-1]
+        for i in range(len(self.layer4)):
+            x1 = self.layer4[i](x1)
+            if i == self.NL_4_idx[NL4_counter]:
+                _, C, H, W = x1.shape
+                x1 = self.NL_4[NL4_counter](x1)
+                NL4_counter += 1
+                
+        # x1 = self.layer1(x1)
+        # x1 = self.layer2(x1)
+        # x1 = self.layer3(x1)
+        # x1 = self.layer4(x1)
 
         return x1
 
     def forward(self, x1, x2, return_featuremaps=False):
         # x2 here is useless, serving as placeholder
 
-        # f1 = self.featuremaps(x1)
-        f1 = self.featuremaps(x2)
+        f1 = self.featuremaps(x1)
+        # f1 = self.featuremaps(x2)
 
         if return_featuremaps:
             return f1
 
-        v1_1 = self.global_avgpool(f1)
-        v1_1 = v1_1.view(v1_1.size(0), -1)
+        # v1_1 = self.global_avgpool(f1)
+        v1_1 = self.global_gempool(f1)
+        # v1_1 = v1_1.view(v1_1.size(0), -1)
+
         # v1_2 = self.global_maxpool(f1)
         # v1_2 = v1_2.view(v1_2.size(0), -1)
         # v1 = self.embedding_layer(torch.cat([v1_1, v1_2], 1))
@@ -309,16 +413,20 @@ class MyModel(nn.Module):
         # v1_new = self.bnneck_rgb(v1)
         v1_new = self.bnneck_rgb(v1_1)
         # v1_parts_new = self.bnneck_rgb_part(v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1))
+        v1_new = v1_new.view(v1_new.size(0), -1)
 
         if not self.training:
-            test_feat0 = F.normalize(v1_new, p=2, dim=1)
+            # test_feat0 = F.normalize(v1_new, p=2, dim=1)
+
             # test_feat1 = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
             # test_feat2 = torch.cat([F.normalize(v1, p=2, dim=1),
             #                         F.normalize(v1_parts, p=2, dim=1).view(v1_parts.size(0), -1)], dim=1)
             # test_feat3 = torch.cat([F.normalize(v1_new, p=2, dim=1),
             #                         F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)], dim=1)
             # return [test_feat0, test_feat1, test_feat2]
-            return [test_feat0]
+            # return [test_feat0]
+
+            return [v1_new]
 
         y1 = self.classifier(v1_new)
         # y1_parts = []
@@ -329,7 +437,7 @@ class MyModel(nn.Module):
         #     y1_parts.append(y1_part_i)
 
         # return [y1, y1_parts], [v1_new, v1_parts_new.view(v1_parts_new.size(0), -1)]
-        return [y1], [v1_1]
+        return [y1], [v1_1.view(v1_1.size(0), -1)]
 
 
 def init_pretrained_weights(model, model_url):

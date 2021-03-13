@@ -72,15 +72,23 @@ class MSMT17(ImageDataset):
             camid = int(osp.basename(img_rel_path).split('_')[2]) - 1  # index starts from 0
 
             img_path = osp.join(dir_path, img_rel_path)
-            img = read_image(img_path, True)
+            # img = read_image(img_path, True)
             contour_path = img_path.replace('/rgb/', '/contour/')
-            contour_img = read_image(contour_path)
+            # contour_img = read_image(contour_path)
+
+            # Load rgb and contour images into the memory
+            # if not if_test:
+            #     if pid in pid2label:
+            #         pid = pid2label[pid]
+            #         data.append((img_path, pid, camid, img, contour_img))
+            # else:
+            #     data.append((img_path, pid, camid, img, contour_img))
 
             if not if_test:
                 if pid in pid2label:
                     pid = pid2label[pid]
-                    data.append((img_path, pid, camid, img, contour_img))
+                    data.append((img_path, contour_path, pid, camid))
             else:
-                data.append((img_path, pid, camid, img, contour_img))
+                data.append((img_path, contour_path, pid, camid))
 
         return data

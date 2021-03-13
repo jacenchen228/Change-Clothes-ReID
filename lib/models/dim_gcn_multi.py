@@ -7,6 +7,7 @@ from __future__ import division
 __all__ = ['dim_gcn_multi50', 'dim_gcn_multi34']
 
 import random
+import math
 
 import torch
 from torch import nn
@@ -17,6 +18,8 @@ from torch.autograd import Variable
 
 from lib.utils.DIM.model import Discriminator
 from lib.utils.gcn_layer_ori import GraphConvolution
+from lib.utils.gat.layers import GraphAttentionLayer
+from lib.utils.sage_layer import SAGEGraphLayer
 # from lib.utils.gcn_layer import GraphConvolution
 from lib.utils import GeneralizedMeanPoolingP, GeneralizedMeanPooling
 from lib.utils import CircleSoftmax
@@ -267,12 +270,19 @@ class MyModel(nn.Module):
             base_dim = layer_base_dims[idx]
             gnns = nn.ModuleList([GraphConvolution(base_dim*block_contour.expansion, base_dim*block_contour.expansion, bias=True)
                                        for _ in range(self.part_num + 1)])
+            # gnns = nn.ModuleList([GraphAttentionLayer(base_dim*block_contour.expansion, base_dim*block_contour.expansion, dropout=0.6, alpha=0.2)
+            #                            for _ in range(self.part_num + 1)])
+            # gnns = nn.ModuleList([SAGEGraphLayer(base_dim*block_contour.expansion, base_dim*block_contour.expansion)
+            #                            for _ in range(self.part_num + 1)])
             bns_gnn = nn.ModuleList([nn.BatchNorm1d(base_dim*block_contour.expansion) for _ in range(self.part_num + 1)])
 
             self.contour_gnns.append(gnns)
             self.contour_gnn_bns.append(bns_gnn)
         self.contour_gnns = nn.ModuleList(self.contour_gnns)
         self.contour_gnn_bns = nn.ModuleList(self.contour_gnn_bns)
+
+        # For SAGE model
+        self.dropout = nn.Dropout(p=0.5)
 
         # Mutual information learning module
         self.global_discriminators = []
@@ -296,7 +306,18 @@ class MyModel(nn.Module):
         # for name, module in self.named_modules():
         #     print(name, module)
 
-        self._init_params()
+        # self._init_params()
+        self.random_init()
+
+        self.bnneck_rgb.apply(self._weights_init_kaiming)
+        self.bnneck_contour.apply(self._weights_init_kaiming)
+        for idx in range(len(self.bnneck_rgb_part)):
+            self.bnneck_rgb_part[idx].apply(self._weights_init_kaiming)
+        for idx in range(len(self.bnneck_contour_part)):
+            self.bnneck_contour_part[idx].apply(self._weights_init_kaiming)
+
+        self.classifier.apply(self._weights_init_classifier)
+        self.classifier_contour.apply(self._weights_init_classifier)
 
         # Zero-initialize the last BN in each residual branch,
         # so that the residual branch starts with zeros, and each residual block behaves like an identity.
@@ -375,6 +396,37 @@ class MyModel(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+    def random_init(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                nn.init.normal_(m.weight, 0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _weights_init_kaiming(self, m):
+        classname = m.__class__.__name__
+        if classname.find('Linear') != -1:
+            nn.init.normal_(m.weight, 0, 0.01)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+        elif classname.find('Conv') != -1:
+            nn.init.kaiming_normal_(m.weight, mode='fan_out')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
+        elif classname.find('BatchNorm') != -1:
+            if m.affine:
+                # nn.init.normal_(m.weight, 1.0, 0.02)
+                nn.init.constant_(m.weight, 1.0)
+                nn.init.constant_(m.bias, 0.0)
+
+    def _weights_init_classifier(self, m):
+        classname = m.__class__.__name__
+        if classname.find('Linear') != -1:
+            nn.init.normal_(m.weight, std=0.001)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0.0)
 
     def normalize(self, adj_mat):
         dim = adj_mat.shape[2]
@@ -393,6 +445,8 @@ class MyModel(nn.Module):
         return adj_mat
 
     def hierarchical_graph_modeling(self, v, layer_idx):
+        # adj = torch.Tensor([[0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0]]).unsqueeze(0).repeat([v.size(0), 1, 1]).cuda()
+
         # fine-grained scale graph learning
         v = v.permute(0, 2, 3, 1)
         v_local = torch.zeros(v.shape[0], v.shape[1], v.shape[3]).cuda()
@@ -401,9 +455,14 @@ class MyModel(nn.Module):
             adj_mat_i = self.cos_sim(part_i)
             adj_mat_i = self.normalize(adj_mat_i)
             part_i_new = self.contour_gnns[layer_idx][idx](part_i, adj_mat_i)
+            # part_i_new = self.contour_gnns[layer_idx][idx](part_i, adj)
             part_i_new = self.contour_gnn_bns[layer_idx][idx](part_i_new.transpose(1, 2))
             part_i_new = part_i_new.transpose(1, 2)
             part_i_new = self.relu(part_i_new)
+
+            # For SAGE Model
+            # part_i_new = self.dropout(part_i_new)
+            # part_i_new = part_i_new.div(part_i_new.norm(dim=2, keepdim=True)+1e-6)
 
             v_local[:, idx, :] = torch.max(part_i_new, dim=1)[0]
 
@@ -411,9 +470,15 @@ class MyModel(nn.Module):
         adj_mat = self.cos_sim(v_local)
         adj_mat = self.normalize(adj_mat)
         v_global = self.contour_gnns[layer_idx][-1](v_local, adj_mat)
+        # v_global = self.contour_gnns[layer_idx][-1](v_local, adj)
         v_global = self.contour_gnn_bns[layer_idx][-1](v_global.transpose(1, 2))
         v_global = v_global.transpose(1, 2)
         v_global = self.relu(v_global)
+
+        # # For SAGE Model
+        # v_global = self.dropout(v_global)
+        # v_global = v_global.div(v_global.norm(dim=2, keepdim=True) + 1e-6)
+
         v_global = torch.max(v_global, dim=1)[0]
 
         return v_global, v_local
@@ -540,20 +605,20 @@ class MyModel(nn.Module):
             return feature_map_vis
 
         # generate rgb features (global + part)
-        v1 = self.global_avgpool(f1)
-        # v1 = self.global_gempool(f1)
+        # v1 = self.global_avgpool(f1)
+        v1 = self.global_gempool(f1)
         v1 = v1.view(v1.size(0), -1)
-        v1_parts = self.parts_avgpool(f1)
-        # v1_parts = self.parts_gempool(f1)
+        # v1_parts = self.parts_avgpool(f1)
+        v1_parts = self.parts_gempool(f1)
         v1_parts = self.conv5(v1_parts)
         v1_parts = v1_parts.view(v1_parts.size(0), v1_parts.size(1), -1)
 
         # generate contour features (global + part)
-        v2 = self.global_avgpool(f2)
-        # v2 = self.global_gempool_contour(f2)
+        # v2 = self.global_avgpool(f2)
+        v2 = self.global_gempool_contour(f2)
         v2 = v2.view(v2.size(0), -1)
-        v2_parts = self.parts_avgpool(f2)
-        # v2_parts = self.parts_gempool_contour(f2)
+        # v2_parts = self.parts_avgpool(f2)
+        v2_parts = self.parts_gempool_contour(f2)
         v2_parts = self.conv5_contour(v2_parts)
         v2_parts = v2_parts.view(v2_parts.size(0), v2_parts.size(1), -1)
 
@@ -569,20 +634,34 @@ class MyModel(nn.Module):
 
         # when evaluation
         if not self.training:
-            global_feat = F.normalize(v1_new, p=2, dim=1)
-            part_feat = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
+            '''
+            Feature with normalization
+            '''
+            # global_feat = F.normalize(v1_new, p=2, dim=1)
+            # part_feat = F.normalize(v1_parts_new, p=2, dim=1).view(v1_parts_new.size(0), -1)
+            # concate_feat = torch.cat([global_feat, self.part_weight*part_feat], dim=1)
+            # concate_feat1 = F.normalize(torch.cat([v1_new, self.part_weight*
+            #                                       v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1), p=2, dim=1)
+            #
+            # # global_contour_feat = F.normalize(v2_new, p=2, dim=1)
+            # # part_contour_feat = F.normalize(v2_parts_new.view(v2_parts_new.size(0), -1), p=2, dim=1)
+            # # concate_contour_feat = F.normalize(torch.cat([global_contour_feat, part_contour_feat], dim=1), p=2, dim=1)
+            #
+            # concate_contour_feat = F.normalize(torch.cat([v2_new, self.part_weight*
+            #                                       v2_parts_new.view(v2_parts_new.size(0), -1)], dim=1), p=2, dim=1)
+            #
+            # return [global_feat, part_feat, concate_feat, concate_feat1, concate_contour_feat]
+
+            '''
+            Feature without normalization
+            '''
+            global_feat = v1_new
+            part_feat = v1_parts_new.view(v1_parts_new.size(0), -1)
             concate_feat = torch.cat([global_feat, self.part_weight*part_feat], dim=1)
-            concate_feat1 = F.normalize(torch.cat([v1_new, self.part_weight*
-                                                  v1_parts_new.view(v1_parts_new.size(0), -1)], dim=1), p=2, dim=1)
 
-            # global_contour_feat = F.normalize(v2_new, p=2, dim=1)
-            # part_contour_feat = F.normalize(v2_parts_new.view(v2_parts_new.size(0), -1), p=2, dim=1)
-            # concate_contour_feat = F.normalize(torch.cat([global_contour_feat, part_contour_feat], dim=1), p=2, dim=1)
+            concate_contour_feat = torch.cat([v2_new, self.part_weight*v2_parts_new.view(v2_parts_new.size(0), -1)], dim=1)
 
-            concate_contour_feat = F.normalize(torch.cat([v2_new, self.part_weight*
-                                                  v2_parts_new.view(v2_parts_new.size(0), -1)], dim=1), p=2, dim=1)
-
-            return [global_feat, part_feat, concate_feat, concate_feat1, concate_contour_feat]
+            return [global_feat, part_feat, concate_feat, concate_contour_feat]
 
         # predict probability
         y1 = self.classifier(v1_new)
@@ -608,8 +687,9 @@ class MyModel(nn.Module):
 
         # return [y1, y1_parts, y2, y2_parts], [v1, v2, v1_parts, v2_parts], \
         #        ej, em, ej_part, em_part
-        return [y1, y2], [v1, v2, v1_parts_new, v2_parts_new], \
+        return [y1, y2], [v1, v2, v1_parts_new.view(v1_parts_new.size(0), -1), v2_parts_new.view(v2_parts_new.size(0), -1)], \
                ejs, ems, ej_parts, em_parts
+        # return [y1, y2], [v1, v2, v1_parts_new.view(v1_parts_new.size(0), -1), v2_parts_new.view(v2_parts_new.size(0), -1)]
 
 
 def init_pretrained_weights(model, model_url):

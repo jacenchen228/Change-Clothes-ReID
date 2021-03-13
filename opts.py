@@ -71,6 +71,9 @@ def init_parser():
                         help='initial learning rate')
     parser.add_argument('--weight-decay', type=float, default=5e-04,
                         help='weight decay')
+    parser.add_argument('--lr-bias-factor', type=float, default=2.0)
+    parser.add_argument('--weight-decay-bias', type=float, default=0.0)
+
     # sgd
     parser.add_argument('--momentum', type=float, default=0.9,
                         help='momentum factor for sgd and rmsprop')
@@ -243,7 +246,9 @@ def optimizer_kwargs(parsed_args):
     return {
         'optim': parsed_args.optim,
         'lr': parsed_args.lr,
+        'lr_bias_factor': parsed_args.lr_bias_factor,
         'weight_decay': parsed_args.weight_decay,
+        'weight_decay_bias': parsed_args.weight_decay_bias,
         'momentum': parsed_args.momentum,
         'sgd_dampening': parsed_args.sgd_dampening,
         'sgd_nesterov': parsed_args.sgd_nesterov,

@@ -17,10 +17,10 @@ from lib.dataset import init_image_dataset
 from lib.models import build_model
 from lib.optim import build_optimizer, build_lr_scheduler
 from lib.engines import Engine
-from lib.utils import DataWarpper, Logger
+from lib.utils import DataWarpper, DataWarpper_Outmemory, Logger
 from lib.utils import (build_transforms, build_train_sampler, load_pretrained_weights,
                        resume_from_checkpoint, check_isfile, collect_env_info, set_random_seed,
-                       compute_model_complexity)
+                       compute_model_complexity, data_batch_collator)
 
 parser = init_parser()
 args = parser.parse_args()
@@ -63,24 +63,62 @@ def main():
     trainset = dataset.train
     train_sampler = build_train_sampler(
         trainset, data_args['train_sampler'],
+        num_train_pids=dataset.num_train_pids,
         batch_size=data_args['batch_size'],
         num_instances=data_args['num_instances'],
-        num_train_pids=dataset.num_train_pids
+        seed=args.seed
     )
+    batch_sampler = torch.utils.data.sampler.BatchSampler(train_sampler, data_args['batch_size'], True)
     trainloader = torch.utils.data.DataLoader(
-        DataWarpper(data=trainset, transforms=transforms_tr),
-        sampler=train_sampler,
-        batch_size=data_args['batch_size'],
-        shuffle=False,
+        # DataWarpper(data=trainset, transforms=transforms_tr),
+        DataWarpper_Outmemory(data=trainset, transforms=transforms_tr),
+        batch_sampler=batch_sampler,
         num_workers=data_args['workers'],
-        pin_memory=False,
-        drop_last=True,
+        collate_fn=data_batch_collator,
+        pin_memory=False
     )
+
+    # train_sampler = build_train_sampler(
+    #     trainset, data_args['train_sampler'],
+    #     batch_size=data_args['batch_size'],
+    #     num_instances=data_args['num_instances'],
+    #     num_train_pids=dataset.num_train_pids
+    # )
+    # trainloader = torch.utils.data.DataLoader(
+    #     # DataWarpper(data=trainset, transforms=transforms_tr),
+    #     DataWarpper_Outmemory(data=trainset, transforms=transforms_tr),
+    #     sampler=train_sampler,
+    #     batch_size=data_args['batch_size'],
+    #     shuffle=False,
+    #     num_workers=data_args['workers'],
+    #     pin_memory=False,
+    #     drop_last=True,
+    # )
+
+    # # load augmented train data
+    trainloader_aug = None
+    # trainset_aug = dataset.train_aug
+    # train_sampler_aug = build_train_sampler(
+    #     trainset_aug, data_args['train_sampler'],
+    #     batch_size=data_args['batch_size'],
+    #     num_instances=data_args['num_instances'],
+    #     num_train_pids=dataset.num_train_pids
+    # )
+    # trainloader_aug = torch.utils.data.DataLoader(
+    #     DataWarpper(data=trainset_aug, transforms=transforms_tr),
+    #     sampler=train_sampler_aug,
+    #     batch_size=data_args['batch_size'],
+    #     shuffle=False,
+    #     num_workers=data_args['workers'],
+    #     pin_memory=False,
+    #     drop_last=True,
+    # )
 
     # load test data
     queryset = dataset.query
     queryloader = torch.utils.data.DataLoader(
-        DataWarpper(data=queryset, transforms=transforms_te),
+        # DataWarpper(data=queryset, transforms=transforms_te),
+        DataWarpper_Outmemory(data=queryset, transforms=transforms_te),
         batch_size=data_args['batch_size'],
         shuffle=False,
         num_workers=data_args['workers'],
@@ -90,7 +128,8 @@ def main():
 
     galleryset = dataset.gallery
     galleryloader = torch.utils.data.DataLoader(
-        DataWarpper(data=galleryset, transforms=transforms_te),
+        # DataWarpper(data=galleryset, transforms=transforms_te),
+        DataWarpper_Outmemory(data=galleryset, transforms=transforms_te),
         batch_size=data_args['batch_size'],
         shuffle=False,
         num_workers=data_args['workers'],
@@ -119,11 +158,12 @@ def main():
     optimizer = build_optimizer(model, **optimizer_kwargs(args))
 
     scheduler = build_lr_scheduler(optimizer, **lr_scheduler_kwargs(args))
+    scheduler_warmup = build_lr_scheduler(optimizer, lr_scheduler='warmup')
 
-    model, optimizer = amp.initialize(model, optimizer,
-                                      opt_level="O1",
-                                      keep_batchnorm_fp32=None,
-                                      loss_scale=None)
+    # model, optimizer = amp.initialize(model, optimizer,
+    #                                   opt_level="O1",
+    #                                   keep_batchnorm_fp32=None,
+    #                                   loss_scale=None)
 
     if use_gpu:
         model = nn.DataParallel(model)
@@ -133,7 +173,8 @@ def main():
 
     print('Building {}-engine for {}-reid'.format(args.loss, args.app))
     engine = Engine(trainloader, queryloader, galleryloader, model, optimizer, scheduler,
-                    query=queryset, gallery=galleryset, use_gpu=use_gpu, num_train_pids=dataset.num_train_pids, **engine_kwargs(args))
+                    query=queryset, gallery=galleryset, use_gpu=use_gpu, num_train_pids=dataset.num_train_pids,
+                    trainloader_aug=trainloader_aug, lr_scheduler_warmup=scheduler_warmup, **engine_kwargs(args))
     engine.run(**engine_kwargs(args), use_gpu=use_gpu)
 
 

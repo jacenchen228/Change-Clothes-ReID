@@ -24,7 +24,6 @@ class GraphAttentionLayer(nn.Module):
 
         self.leakyrelu = nn.LeakyReLU(self.alpha)
 
-
     def forward(self, input, adj):
         h = torch.matmul(input, self.W)
         N, P = h.size()[0], h.size()[1]
@@ -33,12 +32,16 @@ class GraphAttentionLayer(nn.Module):
         e = self.leakyrelu(torch.matmul(a_input, self.a).squeeze(3))
 
         zero_vec = -9e15*torch.ones_like(e)
-        attention = torch.where(adj > 0, e, zero_vec)
+        attention = torch.where(adj > 0.5, e, zero_vec)
         attention = F.softmax(attention, dim=2)
         attention = F.dropout(attention, self.dropout, training=self.training)
 
-        # 把attn的结果当作GCN的adj matrix
-        return attention
+        h = torch.matmul(attention, h)
+
+        if self.concat:
+            return F.elu(h)
+        else:
+            return h
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' + str(self.in_features) + ' -> ' + str(self.out_features) + ')'

@@ -16,6 +16,7 @@ import sys
 
 from torchvision.transforms import ColorJitter
 from torchvision.transforms import functional as F
+import torchvision.transforms as T
 
 if sys.version_info < (3, 3):
     Sequence = collections.Sequence
@@ -40,6 +41,58 @@ _pil_interpolation_to_str = {
 }
 
 
+def to_tensor(pic):
+    """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
+
+    See ``ToTensor`` for more details.
+
+    Args:
+        pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
+
+    Returns:
+        Tensor: Converted image.
+    """
+    if isinstance(pic, np.ndarray):
+        assert len(pic.shape) in (2, 3)
+        # handle numpy array
+        if pic.ndim == 2:
+            pic = pic[:, :, None]
+
+        img = torch.from_numpy(pic.transpose((2, 0, 1)))
+        # backward compatibility
+        if isinstance(img, torch.ByteTensor):
+            return img.float()
+        else:
+            return img
+
+    # handle PIL Image
+    if pic.mode == 'I':
+        img = torch.from_numpy(np.array(pic, np.int32, copy=False))
+    elif pic.mode == 'I;16':
+        img = torch.from_numpy(np.array(pic, np.int16, copy=False))
+    elif pic.mode == 'F':
+        img = torch.from_numpy(np.array(pic, np.float32, copy=False))
+    elif pic.mode == '1':
+        img = 255 * torch.from_numpy(np.array(pic, np.uint8, copy=False))
+    else:
+        img = torch.ByteTensor(torch.ByteStorage.from_buffer(pic.tobytes()))
+    # PIL image mode: L, LA, P, I, F, RGB, YCbCr, RGBA, CMYK
+    if pic.mode == 'YCbCr':
+        nchannel = 3
+    elif pic.mode == 'I;16':
+        nchannel = 1
+    else:
+        nchannel = len(pic.mode)
+    img = img.view(pic.size[1], pic.size[0], nchannel)
+    # put it from HWC to CHW format
+    # yikes, this transpose takes 80% of the loading time/CPU
+    img = img.transpose(0, 1).transpose(0, 2).contiguous()
+    if isinstance(img, torch.ByteTensor):
+        return img.float()
+    else:
+        return img
+
+
 class RandomErasing(object):
     """Randomly erases an image patch.
 
@@ -58,6 +111,7 @@ class RandomErasing(object):
     """
 
     def __init__(self, probability=0.5, sl=0.02, sh=0.4, r1=0.3, mean1=[0.4914, 0.4822, 0.4465]):
+    # def __init__(self, probability=0.5, sl=0.02, sh=0.4, r1=0.3, mean1=[255.0*0.4914, 255.0*0.4822, 255.0*0.4465]):
         self.probability = probability
         self.mean1 = mean1
         self.sl = sl
@@ -91,6 +145,10 @@ class RandomErasing(object):
                 # So the value range is [0.0, 1.0]
                 img2[0, x1:x1 + h, y1:y1 + w] = 1.0
 
+                # # Follow the fastreid project
+                # # here we keep inputs originally in the range of [0.0, 255.0]
+                # img2[0, x1:x1 + h, y1:y1 + w] = 255.0
+
                 return img1, img2
 
         return img1, img2
@@ -100,7 +158,7 @@ class ToTensor(object):
     """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
 
     Converts a PIL Image or numpy.ndarray (H x W x C) in the range
-    [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0].
+    [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 255.0].
     """
 
     def __call__(self, pic1, pic2):
@@ -112,6 +170,7 @@ class ToTensor(object):
             Tensor: Converted image.
         """
         return F.to_tensor(pic1), F.to_tensor(pic2)
+        # return to_tensor(pic1), to_tensor(pic2)
 
     def __repr__(self):
         return self.__class__.__name__ + '()'
@@ -423,7 +482,7 @@ class Compose(object):
 
     def __call__(self, img1, img2):
         for t in self.transforms:
-            if isinstance(t, ColorJitter):
+            if isinstance(t, ColorJitter) or isinstance(t, T.RandomErasing):
                 img1 = t(img1)
             else:
                 img1, img2 = t(img1, img2)
@@ -437,3 +496,54 @@ class Compose(object):
         format_string += '\n)'
 
         return format_string
+
+def to_tensor(pic):
+    """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
+
+    See ``ToTensor`` for more details.
+
+    Args:
+        pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
+
+    Returns:
+        Tensor: Converted image.
+    """
+    if isinstance(pic, np.ndarray):
+        assert len(pic.shape) in (2, 3)
+        # handle numpy array
+        if pic.ndim == 2:
+            pic = pic[:, :, None]
+
+        img = torch.from_numpy(pic.transpose((2, 0, 1)))
+        # backward compatibility
+        if isinstance(img, torch.ByteTensor):
+            return img.float()
+        else:
+            return img
+
+    # handle PIL Image
+    if pic.mode == 'I':
+        img = torch.from_numpy(np.array(pic, np.int32, copy=False))
+    elif pic.mode == 'I;16':
+        img = torch.from_numpy(np.array(pic, np.int16, copy=False))
+    elif pic.mode == 'F':
+        img = torch.from_numpy(np.array(pic, np.float32, copy=False))
+    elif pic.mode == '1':
+        img = 255 * torch.from_numpy(np.array(pic, np.uint8, copy=False))
+    else:
+        img = torch.ByteTensor(torch.ByteStorage.from_buffer(pic.tobytes()))
+    # PIL image mode: L, LA, P, I, F, RGB, YCbCr, RGBA, CMYK
+    if pic.mode == 'YCbCr':
+        nchannel = 3
+    elif pic.mode == 'I;16':
+        nchannel = 1
+    else:
+        nchannel = len(pic.mode)
+    img = img.view(pic.size[1], pic.size[0], nchannel)
+    # put it from HWC to CHW format
+    # yikes, this transpose takes 80% of the loading time/CPU
+    img = img.transpose(0, 1).transpose(0, 2).contiguous()
+    if isinstance(img, torch.ByteTensor):
+        return img.float()
+    else:
+        return img

@@ -71,15 +71,15 @@ class EvaluatorMarket(object):
 
             for i in range(len(features_list)):
                 features_ori = features_list[i]
-                features_ori = F.normalize(features_ori, p=2, dim=1)
+                # features_ori = F.normalize(features_ori, p=2, dim=1)
                 features_ori = features_ori.data.cpu()
 
                 features_flip = features_list_flip[i]
-                features_flip = F.normalize(features_flip, p=2, dim=1)
+                # features_flip = F.normalize(features_flip, p=2, dim=1)
                 features_flip = features_flip.data.cpu()
 
                 features = (features_ori + features_flip) / 2
-                features = F.normalize(features, p=2, dim=1)
+                # features = F.normalize(features, p=2, dim=1)
 
                 qf_dict[i].append(features)
                 # qf_dict[i].append(features_ori)
@@ -94,7 +94,6 @@ class EvaluatorMarket(object):
         q_pids = np.asarray(q_pids)
         q_camids = np.asarray(q_camids)
 
-        # print('Done, obtained {}-by-{}-by-{} matrix'.format(qf.size(0), qf.size(1), qf.size(2)))
         print('Done, obtained {}-by-{} matrix'.format(qf.size(0), qf.size(1)))
 
         print('Extracting features from gallery set ...')
@@ -116,15 +115,15 @@ class EvaluatorMarket(object):
 
             for i in range(len(features_list)):
                 features_ori = features_list[i]
-                features_ori = F.normalize(features_ori, p=2, dim=1)
+                # features_ori = F.normalize(features_ori, p=2, dim=1)
                 features_ori = features_ori.data.cpu()
 
                 features_flip = features_list_flip[i]
-                features_flip = F.normalize(features_flip, p=2, dim=1)
+                # features_flip = F.normalize(features_flip, p=2, dim=1)
                 features_flip = features_flip.data.cpu()
 
                 features = (features_ori + features_flip) / 2
-                features = F.normalize(features, p=2, dim=1)
+                # features = F.normalize(features, p=2, dim=1)
 
                 gf_dict[i].append(features)
                 # gf_dict[i].append(features_ori)

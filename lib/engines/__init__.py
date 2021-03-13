@@ -14,7 +14,7 @@ from .evaluatorLTCC import EvaluatorLTCC
 class Engine(object):
     def __init__(self, trainloader, queryloader, galleryloader, model, optimizer, lr_scheduler,
                  eval_protocol='prcc', concern_indicator='rank', start_save_epoch=1, start_eval_epoch=1,
-                 **kwargs):
+                 trainloader_aug=None, lr_scheduler_warmup=None, **kwargs):
         self.trainloader = trainloader
         self.queryloader = queryloader
         self.galleryloader = galleryloader
@@ -26,7 +26,10 @@ class Engine(object):
         self.start_save_epoch = start_save_epoch
         self.start_eval_epoch = start_eval_epoch
 
-        self.trainer = Trainer(trainloader, model, optimizer, lr_scheduler, **kwargs)
+        # Specify for augmented PRCC dataset
+        self.trainloader_aug = trainloader_aug
+
+        self.trainer = Trainer(trainloader, model, optimizer, lr_scheduler, lr_scheduler_warmup=lr_scheduler_warmup, **kwargs)
         if eval_protocol == 'market':
             self.evaluator = EvaluatorMarket(queryloader, galleryloader, model, **kwargs)
             from .evaluatorMarket import ID2FEAT_NAME
@@ -56,7 +59,7 @@ class Engine(object):
         max_feat_global = 0
         max_indicators, max_epochs = [0]*len(self.ID2FEAT_NAME), [0]*len(self.ID2FEAT_NAME)
         for epoch in range(0, max_epoch):
-            self.trainer.train(epoch, **kwargs)
+            self.trainer.train(epoch, trainloader_aug=self.trainloader_aug, **kwargs)
 
             if eval_freq > 0 and (epoch + 1) % eval_freq == 0 and (
                     epoch + 1) != max_epoch and (epoch + 1) >= self.start_eval_epoch:

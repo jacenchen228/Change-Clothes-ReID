@@ -12,3 +12,6 @@ from .orthogonal import *
 from .pooling import *
 from .gcn_layer import *
 from .circle_softmax import *
+from .non_local import Non_local
+from .batch_norm import get_norm
+from .data_collector import *

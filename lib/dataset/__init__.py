@@ -9,6 +9,7 @@ from .biwi import *
 from .biwi_walking import *
 from .msmt17 import *
 from .ltcc import *
+from .ltcc_change import *
 
 __image_datasets = {
     'prcc': PRCC,
@@ -19,7 +20,8 @@ __image_datasets = {
     'vc-clothes': VC_Clothes,
     'biwi': BIWI,
     'biwi_walking': BIWI_Walking,
-    'ltcc': LTCC
+    'ltcc': LTCC,
+    'ltcc_change': LTCC_Change
 }
 
 
